@@ -1,0 +1,202 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// HOW TO IDENTIFY AI WORKLOADS IN YOUR KUBERNETES CLUSTERS
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// This query helps you discover and inventory AI/ML workloads across your K8s clusters
+// by analyzing process telemetry, package usage, and resource patterns.
+//
+// WHY THIS MATTERS:
+// Before you can secure AI workloads, you need to know where they are. Many organizations
+// have "shadow AI" — workloads using ML frameworks that security teams don't know about.
+//
+// SCHEMA: Azure Log Analytics with Defender for Containers
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let lookback = 7d;  // Analyze past week of activity
+
+// ────────────────────────────────────────────────────────────────────────────
+// METHOD 1: Detect AI Frameworks via Process Command Lines
+// ────────────────────────────────────────────────────────────────────────────
+let AIProcessSignatures = 
+    K8S_ProcessEvents
+    | where TimeCreatedUtc > ago(lookback)
+    | where pname has_any ("python", "python3", "uvicorn", "gunicorn", "flask", "fastapi")
+    | where cmdline has_any (
+        // ML Frameworks
+        "torch", "pytorch", "tensorflow", "keras", "transformers", "sklearn",
+        // LLM / Agent Frameworks
+        "langchain", "llamaindex", "openai", "anthropic", "langflow", "autogen",
+        // Model Serving
+        "vllm", "ray", "mlflow", "triton", "seldon",
+        // Vector DBs / Embeddings
+        "faiss", "chromadb", "pinecone", "weaviate", "sentence-transformers"
+    )
+    | extend Framework = case(
+        cmdline has "torch" or cmdline has "pytorch", "PyTorch",
+        cmdline has "tensorflow", "TensorFlow",
+        cmdline has "transformers", "HuggingFace Transformers",
+        cmdline has "langchain", "LangChain",
+        cmdline has "openai", "OpenAI API",
+        cmdline has "ray", "Ray",
+        cmdline has "vllm", "vLLM",
+        "Other AI Framework"
+    )
+    | summarize 
+        FirstSeen=min(TimeCreatedUtc),
+        LastSeen=max(TimeCreatedUtc),
+        ExecutionCount=count(),
+        SampleCommands=make_set(cmdline, 3)
+        by Namespace, PodName, Framework
+    | extend DetectionMethod = "Process Command Line";
+
+// ────────────────────────────────────────────────────────────────────────────
+// METHOD 2: Detect GPU-Enabled Pods (Strong AI Indicator)
+// ────────────────────────────────────────────────────────────────────────────
+let GPUPods = 
+    AzureDiagnostics
+    | where TimeGenerated > ago(lookback)
+    | where Category == "kube-audit"
+    | where log_s has "nvidia" or log_s has "gpu"
+    | extend Namespace = tostring(parse_json(log_s).objectRef.namespace)
+    | extend PodName = tostring(parse_json(log_s).objectRef.name)
+    | where isnotempty(Namespace) and isnotempty(PodName)
+    | summarize FirstSeen=min(TimeGenerated) by Namespace, PodName
+    | extend Framework = "GPU-Enabled (likely AI/ML)"
+    | extend DetectionMethod = "GPU Resource Request";
+
+// ────────────────────────────────────────────────────────────────────────────
+// METHOD 3: Detect Model File Access (.pt, .bin, .safetensors, .onnx)
+// ────────────────────────────────────────────────────────────────────────────
+let ModelFileAccess = 
+    K8S_ProcessEvents
+    | where TimeCreatedUtc > ago(lookback)
+    | where cmdline has_any (".pt", ".pth", ".bin", ".safetensors", ".onnx", ".h5", ".pb")
+    | extend Framework = case(
+        cmdline has ".pt" or cmdline has ".pth", "PyTorch Model",
+        cmdline has ".safetensors", "Safetensors Model",
+        cmdline has ".onnx", "ONNX Model",
+        cmdline has ".h5" or cmdline has ".pb", "TensorFlow Model",
+        "Model File"
+    )
+    | summarize 
+        FirstSeen=min(TimeCreatedUtc),
+        LastSeen=max(TimeCreatedUtc),
+        ModelFiles=make_set(extract(@"([a-zA-Z0-9_\-]+\.(pt|pth|bin|safetensors|onnx|h5|pb))", 1, cmdline), 5)
+        by Namespace, PodName, Framework
+    | extend DetectionMethod = "Model File Access";
+
+// ────────────────────────────────────────────────────────────────────────────
+// METHOD 4: Detect Common AI Package Installation (pip, conda)
+// ────────────────────────────────────────────────────────────────────────────
+let PackageInstalls = 
+    K8S_ProcessEvents
+    | where TimeCreatedUtc > ago(lookback)
+    | where cmdline has "pip install" or cmdline has "conda install"
+    | where cmdline has_any ("torch", "tensorflow", "transformers", "langchain", "openai")
+    | extend Framework = extract(@"(torch|tensorflow|transformers|langchain|openai)", 1, cmdline)
+    | summarize 
+        FirstSeen=min(TimeCreatedUtc),
+        Packages=make_set(Framework, 10)
+        by Namespace, PodName
+    | extend Framework = strcat("pip/conda: ", strcat_array(Packages, ", "))
+    | extend DetectionMethod = "Package Installation";
+
+// ────────────────────────────────────────────────────────────────────────────
+// STEP 5: Combine All Detection Methods
+// ────────────────────────────────────────────────────────────────────────────
+let AllAIWorkloads = 
+    AIProcessSignatures
+    | union GPUPods
+    | union ModelFileAccess
+    | union PackageInstalls
+    | summarize 
+        FirstDetected=min(FirstSeen),
+        LastActivity=max(iff(isnotnull(LastSeen), LastSeen, FirstSeen)),
+        Frameworks=make_set(Framework),
+        DetectionMethods=make_set(DetectionMethod),
+        SampleCommands=any(SampleCommands)
+        by Namespace, PodName;
+
+// ────────────────────────────────────────────────────────────────────────────
+// FINAL OUTPUT: Enriched AI Workload Inventory
+// ────────────────────────────────────────────────────────────────────────────
+AllAIWorkloads
+| join kind=leftouter (
+    // Enrich with container image info
+    AzureDiagnostics
+    | where TimeGenerated > ago(lookback)
+    | where Category == "kube-audit"
+    | where log_s has "ImagePull"
+    | extend Namespace = tostring(parse_json(log_s).objectRef.namespace)
+    | extend PodName = tostring(parse_json(log_s).objectRef.name)
+    | extend Image = tostring(parse_json(log_s).requestObject.spec.containers[0].image)
+    | summarize Image=any(Image) by Namespace, PodName
+) on Namespace, PodName
+| extend RiskScore = case(
+    // High risk: GPU + privileged + external model loading
+    array_length(Frameworks) >= 3 and DetectionMethods has "GPU Resource Request", 8,
+    // Medium-high risk: Multiple frameworks or GPU-enabled
+    array_length(Frameworks) >= 2 or DetectionMethods has "GPU Resource Request", 6,
+    // Medium risk: Single framework, no GPU
+    array_length(Frameworks) == 1, 4,
+    // Lower risk: Only package install (maybe CI/dev)
+    DetectionMethods == pack_array("Package Installation"), 2,
+    2  // default
+)
+| extend Recommendation = case(
+    RiskScore >= 7, "🔴 HIGH PRIORITY — Review immediately. Likely production AI workload with elevated risk.",
+    RiskScore >= 5, "🟠 MEDIUM PRIORITY — Validate security posture. Check for over-permissioned identities.",
+    RiskScore >= 3, "🟡 LOW PRIORITY — Monitor for changes. May be dev/test workload.",
+    "✅ INFORMATIONAL — Minimal AI activity detected."
+)
+| project 
+    Namespace,
+    PodName,
+    RiskScore,
+    Recommendation,
+    Frameworks,
+    DetectionMethods,
+    Image,
+    FirstDetected,
+    LastActivity,
+    DaysActive=datetime_diff('day', LastActivity, FirstDetected),
+    SampleCommands
+| order by RiskScore desc, LastActivity desc
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HOW TO USE THIS QUERY:
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// 1. RUN QUERY IN LOG ANALYTICS
+//    - Scope to your AKS clusters
+//    - Adjust `lookback` period as needed (default: 7 days)
+//
+// 2. REVIEW HIGH-RISK WORKLOADS FIRST
+//    - RiskScore 7-10: Production AI workloads — prioritize security hardening
+//    - RiskScore 4-6: Validate whether these should exist
+//    - RiskScore 1-3: Development/test — lower priority
+//
+// 3. FOR EACH IDENTIFIED WORKLOAD, ASK:
+//    ✓ Is this workload supposed to be here?
+//    ✓ Does it need GPU access?
+//    ✓ What cloud permissions does it have? (ServiceAccount + workload identity)
+//    ✓ Is the image signed and from a trusted registry?
+//    ✓ Does it load external models? Are they hash-validated?
+//
+// 4. USE AS BASELINE FOR ONGOING MONITORING
+//    - Schedule this query weekly
+//    - Alert on new high-risk workloads
+//    - Track risk score changes over time
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+// NEXT STEPS AFTER IDENTIFICATION:
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Once you've identified AI workloads:
+//
+// → Run security audit scripts (see /scripts/ directory in this repo)
+// → Apply hardening checklist (see /checklists/ directory)
+// → Enable hunting queries for anomaly detection (see other .kql files)
+// → Review incident response playbook (see /playbooks/ directory)
+//
+// ═══════════════════════════════════════════════════════════════════════════════
