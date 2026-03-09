@@ -2,11 +2,11 @@
 
 **Supply Chain Security Resources for AI Workloads in Kubernetes**
 
-Presented at Microsoft Defender Experts S.T.A.R. Forum, February 2026
+Presented at Microsoft Defender Experts S.T.A.R. Forum, March 2026
 
 **Authors:**
-- Diwas Sedai, Senior Security Researcher, Microsoft Defender for Cloud
 - Avi Sharma, Security Researcher, Microsoft Defender for Cloud
+- Diwas Sedai, Senior Security Researcher, Microsoft Defender for Cloud
 
 ---
 
