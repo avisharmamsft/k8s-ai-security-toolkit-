@@ -3,8 +3,8 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // 
 // This query correlates across 4 data sources to detect full attack paths:
-//   1. K8s Audit Logs (control plane actions)
-//   2. K8s Process Events (runtime behavior)
+//   1. CloudAuditEvents   (K8s control plane actions)
+//   2. CloudProcessEvents (K8s runtime behavior)
 //   3. Azure Resource Manager logs (cloud API calls)
 //   4. Entra ID sign-in logs (identity activity)
 //
@@ -12,7 +12,21 @@
 // CI token compromise → poisoned image push → auto-deployment → 
 // Python→shell execution → IMDS credential harvest → Azure API pivot
 //
-// SCHEMA: Azure Log Analytics (AKS + Defender for Cloud + Sentinel)
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │  WHERE TO RUN                                                           │
+// │                                                                         │
+// │  Steps 1–3 (CloudAuditEvents, CloudProcessEvents):                     │
+// │    → Microsoft Defender XDR > Advanced Hunting                         │
+// │                                                                         │
+// │  Steps 4–5 (AzureActivity, SigninLogs):                                │
+// │    → Azure Sentinel / Log Analytics Workspace                          │
+// │                                                                         │
+// │  Full unified query:                                                    │
+// │    → Azure Sentinel, if CloudAuditEvents + CloudProcessEvents are      │
+// │      forwarded to your Log Analytics workspace via Defender connector   │
+// └─────────────────────────────────────────────────────────────────────────┘
+//
+// SCHEMA: Microsoft Defender XDR Advanced Hunting + Sentinel (unified)
 // TIME WINDOW: Last 24 hours (adjust as needed)
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -20,56 +34,77 @@ let timeframe = 24h;
 let suspiciousNamespaces = dynamic(["ml-prod", "ai-workloads", "gpu-pool"]);
 
 // ────────────────────────────────────────────────────────────────────────────
-// STEP 1: Identify Suspicious Image Deployments
+// STEP 1: Identify Suspicious Pod Deployments (image captured at create time)
+// Run in: Defender XDR Advanced Hunting
 // ────────────────────────────────────────────────────────────────────────────
 let SuspiciousDeployments = 
-    AzureDiagnostics
-    | where TimeGenerated > ago(timeframe)
-    | where Category == "kube-audit"
-    | where log_s has "ImagePull"
-    | extend PodName = tostring(parse_json(log_s).objectRef.name)
-    | extend Namespace = tostring(parse_json(log_s).objectRef.namespace)
-    | extend SourceIP = tostring(parse_json(log_s).sourceIPs[0])
-    | extend Image = tostring(parse_json(log_s).requestObject.spec.containers[0].image)
+    CloudAuditEvents
+    | where Timestamp > ago(timeframe)
+    | where DataSource == "Kubernetes Audit"                       // scope to K8s audit events only
+    | where ActionType == "Create"                                 // case-sensitive; K8s pod creation verb
+    | where tostring(RawEventData.objectRef.resource) == "pods"
+    | extend PodName    = tostring(RawEventData.objectRef.name)
+    | extend Namespace  = tostring(RawEventData.objectRef.namespace)
+    | extend Caller     = tostring(RawEventData.user.username)     // identity that created the pod
+    // Capture images from all containers, not just index [0]
+    | extend AllImages  = tostring(RawEventData.requestObject.spec.containers)
+    | extend InitImages = tostring(RawEventData.requestObject.spec.initContainers)
     | where Namespace in (suspiciousNamespaces) or Namespace startswith "ml-" or Namespace startswith "ai-"
-    | project DeployTime=TimeGenerated, Namespace, PodName, Image, SourceIP
-    | extend ImageRepo = split(Image, ":")[0]
-    | extend ImageTag = split(Image, ":")[1];
+    | project DeployTime=Timestamp, Namespace, PodName, AllImages, InitImages, IPAddress, Caller;
 
 // ────────────────────────────────────────────────────────────────────────────
 // STEP 2: Detect Runtime Python→Shell Execution
+// Run in: Defender XDR Advanced Hunting
+// Note: CloudProcessEvents is scoped to K8s (AKS/EKS/GKE) by definition.
+//       KubernetesNamespace and KubernetesPodName are native top-level columns.
 // ────────────────────────────────────────────────────────────────────────────
 let PythonShellExecution = 
-    K8S_ProcessEvents
-    | where TimeCreatedUtc > ago(timeframe)
-    | where pname has_any ("python", "python3", "uvicorn", "gunicorn")
-    | where cmdline has_any ("bash", "sh", "/bin/sh", "curl", "wget", "nc", "ncat")
-    | where Namespace in (suspiciousNamespaces) or Namespace startswith "ml-" or Namespace startswith "ai-"
-    | project ShellTime=TimeCreatedUtc, Namespace, PodName, cmdline, pname, user, exe;
+    CloudProcessEvents
+    | where Timestamp > ago(timeframe)
+    | where ProcessCommandLine has_any ("python", "python3", "uvicorn", "gunicorn")
+    | where ProcessCommandLine has_any ("bash", "sh", "/bin/sh", "curl", "wget", "nc", "ncat")
+    | where KubernetesNamespace in (suspiciousNamespaces)
+          or KubernetesNamespace startswith "ml-"
+          or KubernetesNamespace startswith "ai-"
+    | project ShellTime=Timestamp,
+              Namespace=KubernetesNamespace,
+              PodName=KubernetesPodName,
+              cmdline=ProcessCommandLine,
+              pname=FileName,
+              user=AccountName,
+              exe=FolderPath;
 
 // ────────────────────────────────────────────────────────────────────────────
 // STEP 3: Detect IMDS Metadata Endpoint Access (Credential Harvesting)
+// Run in: Defender XDR Advanced Hunting
 // ────────────────────────────────────────────────────────────────────────────
 let MetadataAccess = 
-    K8S_ProcessEvents
-    | where TimeCreatedUtc > ago(timeframe)
-    | where cmdline contains "169.254.169.254"
-    | where Namespace in (suspiciousNamespaces) or Namespace startswith "ml-" or Namespace startswith "ai-"
-    | project IMDSTime=TimeCreatedUtc, Namespace, PodName, cmdline as IMDSCommand, exe;
+    CloudProcessEvents
+    | where Timestamp > ago(timeframe)
+    | where ProcessCommandLine contains "169.254.169.254"
+    | where KubernetesNamespace in (suspiciousNamespaces)
+          or KubernetesNamespace startswith "ml-"
+          or KubernetesNamespace startswith "ai-"
+    | project IMDSTime=Timestamp,
+              Namespace=KubernetesNamespace,
+              PodName=KubernetesPodName,
+              IMDSCommand=ProcessCommandLine,
+              exe=FolderPath;
 
 // ────────────────────────────────────────────────────────────────────────────
 // STEP 4: Detect Azure Resource Manager API Calls (Cloud Pivot)
+// Run in: Azure Sentinel / Log Analytics
 // ────────────────────────────────────────────────────────────────────────────
 let AzureAPICalls = 
     AzureActivity
     | where TimeGenerated > ago(timeframe)
     | where OperationNameValue has_any ("Microsoft.ContainerService", "Microsoft.Storage", "Microsoft.KeyVault")
     | where ActivityStatusValue == "Success"
-    | extend CallerIP = tostring(parse_json(HTTPRequest).clientIpAddress)
-    | project APITime=TimeGenerated, Caller, OperationNameValue, ResourceGroup, CallerIP;
+    | project APITime=TimeGenerated, Caller, OperationNameValue, ResourceGroup;
 
 // ────────────────────────────────────────────────────────────────────────────
 // STEP 5: Entra ID Sign-In Activity (Identity Correlation)
+// Run in: Azure Sentinel / Log Analytics
 // ────────────────────────────────────────────────────────────────────────────
 let EntraActivity = 
     SigninLogs
@@ -80,26 +115,32 @@ let EntraActivity =
 
 // ────────────────────────────────────────────────────────────────────────────
 // STEP 6: Correlate All Signals into Attack Chains
+// Run in: Azure Sentinel (unified), or XDR Advanced Hunting for Steps 1–3 only
+// NOTE: Azure API pivot (Step 4) correlates on Caller identity (pod service
+//       account / managed identity), not source IP — the node IP seen in audit
+//       logs does not match the clientIpAddress in AzureActivity.
 // ────────────────────────────────────────────────────────────────────────────
 SuspiciousDeployments
 | join kind=inner (PythonShellExecution) on Namespace, PodName
-| where ShellTime between (DeployTime .. (DeployTime + 30m))  // shell within 30min of deploy
+| where ShellTime between (DeployTime .. (DeployTime + 30m))       // shell within 30min of deploy
 | join kind=leftouter (MetadataAccess) on Namespace, PodName
 | where isnull(IMDSTime) or IMDSTime between (ShellTime .. (ShellTime + 10m))
-| join kind=leftouter (AzureAPICalls) on $left.SourceIP == $right.CallerIP
-| where isnull(APITime) or APITime between (IMDSTime .. (IMDSTime + 20m))
-| join kind=leftouter (EntraActivity) on $left.SourceIP == $right.IPAddress
-| project-away Namespace1, PodName1, Namespace2, PodName2  // cleanup join artifacts
+| join kind=leftouter (AzureAPICalls) on Caller                    // correlate on identity, not IP
+| where isnull(APITime) or APITime between (
+    coalesce(IMDSTime, ShellTime) .. (coalesce(IMDSTime, ShellTime) + 20m))  // handle null IMDSTime safely
+| join kind=leftouter (EntraActivity) on $left.IPAddress == $right.IPAddress
+| project-away Namespace1, PodName1, Namespace2, PodName2          // cleanup join artifacts
 | extend AttackChainConfidence = case(
     isnotnull(IMDSTime) and isnotnull(APITime), "HIGH - Full chain observed",
     isnotnull(IMDSTime), "MEDIUM - IMDS access detected",
     "LOW - Suspicious shell only"
 )
 | extend AttackNarrative = strcat(
-    "1. Image deployed: ", Image, " at ", DeployTime, "\n",
+    "1. Pod deployed at ", DeployTime, " by ", Caller, "\n",
+    "   Images: ", AllImages, "\n",
     "2. Python spawned shell at ", ShellTime, ": ", cmdline, "\n",
-    iff(isnotnull(IMDSTime), strcat("3. IMDS accessed at ", IMDSTime, ": ", IMDSCommand, "\n"), ""),
-    iff(isnotnull(APITime), strcat("4. Azure API call at ", APITime, ": ", OperationNameValue, "\n"), ""),
+    iff(isnotnull(IMDSTime),   strcat("3. IMDS accessed at ", IMDSTime, ": ", IMDSCommand, "\n"), ""),
+    iff(isnotnull(APITime),    strcat("4. Azure API call at ", APITime, ": ", OperationNameValue, "\n"), ""),
     iff(isnotnull(SignInTime), strcat("5. Entra sign-in at ", SignInTime, ": ", UserPrincipalName), "")
 )
 | project 
@@ -107,8 +148,8 @@ SuspiciousDeployments
     AttackChainConfidence,
     Namespace,
     PodName,
-    Image,
-    SourceIP,
+    AllImages,
+    Caller,
     AttackNarrative,
     // Raw fields for investigation
     ShellCommand=cmdline,
