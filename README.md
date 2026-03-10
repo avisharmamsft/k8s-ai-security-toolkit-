@@ -17,7 +17,7 @@ This repository contains production-ready security resources for detecting and d
 ### 1. **Extended Kubernetes + AI Threat Matrix**
 - `threat-matrix/K8s_AI_Threat_Matrix.md` - Markdown version
 - `threat-matrix/threat-matrix.xlsx` - Excel version with filtering
-- `threat-matrix/index.html` - [Interactive version](https://htmlpreview.github.io/?https://github.com/avisharmamsft/k8s-ai-security-toolkit/blob/d996d27762d046b471358d15ae125180f2a5c5a6/threat-matrix/index.html)
+- `threat-matrix/index.html` - [Interactive version](https://htmlpreview.github.io/?https://github.com/avisharmamsft/k8s-ai-security-toolkit/blob/main/threat-matrix/index.html)
 - Shows base Kubernetes threat techniques (from [Microsoft's K8s Threat Matrix](https://microsoft.github.io/Threat-Matrix-for-Kubernetes/))
 - **NEW:** AI-layer extensions covering model artifacts, agentic systems, and ML-specific attack paths
 
@@ -28,16 +28,16 @@ This repository contains production-ready security resources for detecting and d
 
 ### 3. **KQL Hunting Query Pack**
 - `kql/hunting-queries.kql` - Full query pack (9 sections, 20+ queries) covering:
-  - **Section 0** - AI workload discovery (namespace, image, GPU, Security Explorer)
-  - **Section 1** - Runtime pip/npm installs (dependency confusion, malicious postinstall patterns)
-  - **Section 2** - IMDS token harvest and az CLI pivot
-  - **Section 3** - AI framework process anomalies (kubectl abuse, LangGrinch CVE-2025-68664, pickle deserialization)
-  - **Section 4** - Sidecar injection and webhook abuse
-  - **Section 5** - CI/CD pipeline dependency drift
-  - **Section 6** - Cryptomining in AI/GPU pods
-  - **Section 7** - Sentinel / Log Analytics queries (SecurityAlert, kube-audit, Entra AuditLogs)
-  - **Section 8** - Scheduled alert rule templates
-  - **Section 9** - Agent tool-call drift baseline and CI SPN pivot detection
+  - **Section 0** — AI workload discovery (namespace, image, GPU, Security Explorer)
+  - **Section 1** — Runtime pip/npm installs (dependency confusion, malicious postinstall patterns)
+  - **Section 2** — IMDS token harvest and az CLI pivot
+  - **Section 3** — AI framework process anomalies (kubectl abuse, LangGrinch CVE-2025-68664, pickle deserialization)
+  - **Section 4** — Sidecar injection and webhook abuse
+  - **Section 5** — CI/CD pipeline dependency drift
+  - **Section 6** — Cryptomining in AI/GPU pods
+  - **Section 7** — Sentinel / Log Analytics queries (SecurityAlert, kube-audit, Entra AuditLogs)
+  - **Section 8** — Scheduled alert rule templates
+  - **Section 9** — Agent tool-call drift baseline and CI SPN pivot detection
 - `kql/06-multi-dataset-correlation.kql` - **ADVANCED:** Full kill-chain correlation across K8s audit + process events + ARM logs + Entra sign-in logs
 - `kql/07-identify-ai-workloads.kql` - **NEW:** Multi-method AI workload inventory with risk scoring
 
@@ -109,6 +109,20 @@ If you use these resources in your research or security operations, please cite:
 Sharma, A. (2026). Supply Chain Attacks on AI Workloads in Kubernetes.
 Microsoft Defender Experts S.T.A.R. Forum. https://github.com/avisharmamsft/k8s-ai-security-toolkit
 ```
+
+---
+
+## 📄 License
+
+This repository contains two types of material, both released under **Creative Commons Attribution 4.0 International (CC BY 4.0)**:
+
+**Base threat matrix content** (K8s techniques `MS-TA9001`–`MS-TA9041`, mitigations `MS-M9001`–`MS-M9032`) is adapted from the [Microsoft Threat Matrix for Kubernetes](https://microsoft.github.io/Threat-Matrix-for-Kubernetes/) by Yossi Weizman, Dotan Patrich, and Ram Pliskin (Microsoft Defender for Cloud), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+**AI-layer extensions** (techniques prefixed `AI-`, mitigations prefixed `AI-M`, KQL detection queries, hardening checklist, and audit scripts) are original contributions by Avi Sharma and the Microsoft Defender for Cloud Research Team, also released under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+[![CC BY 4.0](https://licensebuttons.net/l/by/4.0/88x31.png)](https://creativecommons.org/licenses/by/4.0/)
+
+> **Attribution requirement:** If you use or adapt this work, please credit both the original Microsoft Threat Matrix for Kubernetes and this repository, and indicate what changes were made.
 
 ---
 
