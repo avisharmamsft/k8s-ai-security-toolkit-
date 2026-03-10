@@ -130,5 +130,5 @@ Questions or feedback? Reach out via:
 
 ---
 
-**Last Updated:** February 2026  
+**Last Updated:** March 2026  
 **License:** MIT (see LICENSE file)
