@@ -369,7 +369,7 @@ ContainerLog
 CloudProcessEvents
 | where InitiatingProcessCommandLine has "langflow"
 | where ProcessCommandLine has_any("os.system","subprocess","exec","eval","__import__")
-| project TimeGenerated, DeviceName, ProcessCommandLine, InitiatingProcessCommandLine
+| project Timestamp, DeviceName, ProcessCommandLine, InitiatingProcessCommandLine
 // Also check via Defender for Cloud:
 // SecurityAlert | where AlertName has "Langflow"` },
 
@@ -378,10 +378,12 @@ CloudProcessEvents
     examples:["Ray job API POST /api/jobs/","vLLM /v1/completions accessible from internet"],
     kql:`// Detect Ray/vLLM pods without auth - check service exposure
 CloudAuditEvents
-| where ActionType == "CreateService" or ActionType == "PatchService"
+| where DataSource == "Kubernetes Audit"
+| where ActionType in ("Create","Update")
+| where tostring(RawEventData.objectRef.resource) == "services"
 | where RawEventData has_any("ray","vllm","triton","ollama","comfyui")
 | where RawEventData has_any("LoadBalancer","NodePort")
-| project TimeGenerated, AccountDisplayName, RawEventData` },
+| project Timestamp, AccountDisplayName, RawEventData` },
 
   // ── EXECUTION ─────────────────────────────────────────────────────────────
   { id:"K8s-EX-001", name:"Exec into container", tactic:"execution", type:"k8s",
@@ -423,8 +425,8 @@ CloudProcessEvents
 | where InitiatingProcessCommandLine has_any("torch","transformers","pickle","load_model")
 | where ProcessCommandLine has_any("curl","wget","nc","bash","sh","/bin/","/tmp/")
 | where InitiatingProcessParentFileName in~ ("python","python3","python3.10","python3.11")
-| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine
-| order by TimeGenerated desc` },
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine
+| order by Timestamp desc` },
 
   { id:"AI-EX-002", name:"Prompt Injection via Tool Call", tactic:"execution", type:"ai",
     desc:"Adversarial content in user prompt or retrieved document instructs AI agent to call tools (kubectl, az CLI) to execute commands. Particularly dangerous in agentic pipelines with cluster access.",
@@ -433,7 +435,7 @@ CloudProcessEvents
 CloudProcessEvents
 | where InitiatingProcessCommandLine has_any("langchain","autogen","crewai","semantic_kernel","openai")
 | where ProcessCommandLine has_any("kubectl","az ","azurecli","helm","curl http")
-| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
 
   { id:"AI-EX-003", name:"MCP Server with Embedded Reverse Shell", tactic:"execution", type:"ai",
     desc:"Malicious MCP (Model Context Protocol) server auto-loaded by AI coding agent (Cline, Claude Code, Cursor) contains a reverse shell or data exfiltration tool disguised as a legitimate capability.",
@@ -442,7 +444,7 @@ CloudProcessEvents
 CloudProcessEvents
 | where InitiatingProcessCommandLine has "npm install" or InitiatingProcessCommandLine has "postinstall"
 | where ProcessCommandLine has_any("curl","wget","nc ","bash -i","sh -i","/tmp/","python -c")
-| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine, FolderPath` },
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine, FolderPath` },
 
   // ── PERSISTENCE ───────────────────────────────────────────────────────────
   { id:"K8s-PE-001", name:"Backdoor container", tactic:"persistence", type:"k8s",
@@ -455,10 +457,12 @@ CloudProcessEvents
     examples:["Write to /etc/cron.d via hostPath","Modify node kubelet config"],
     kql:`// Pods with hostPath mounts
 CloudAuditEvents
-| where ActionType == "CreatePod"
+| where DataSource == "Kubernetes Audit"
+| where ActionType == "Create"
+| where tostring(RawEventData.objectRef.resource) == "pods"
 | where RawEventData has "hostPath"
 | where RawEventData !has "ReadOnly"
-| project TimeGenerated, AccountDisplayName, RawEventData` },
+| project Timestamp, AccountDisplayName, RawEventData` },
 
   { id:"K8s-PE-003", name:"Kubernetes CronJob", tactic:"persistence", type:"k8s",
     desc:"Attacker creates a CronJob to periodically execute malicious workloads.",
@@ -482,7 +486,7 @@ AzureDiagnostics
 CloudAuditEvents
 | where ActionType has_any("PutBlob","WriteFile","UploadArtifact")
 | where RawEventData has_any(".safetensors",".pt",".gguf","adapter_config","lora")
-| project TimeGenerated, AccountDisplayName, ActionType, RawEventData` },
+| project Timestamp, AccountDisplayName, ActionType, RawEventData` },
 
   { id:"AI-PE-002", name:"Malicious MCP Server Injection", tactic:"persistence", type:"ai",
     desc:"MCP server registered in agent config persists across sessions and is auto-loaded, providing recurring C2 channel or data exfiltration capability.",
@@ -491,7 +495,7 @@ CloudAuditEvents
 CloudProcessEvents
 | where FolderPath has_any(".cursor","mcp.json",".claude","cline","codeium")
 | where ActionType == "FileCreated" or ActionType == "FileModified"
-| project TimeGenerated, DeviceName, AccountName, FolderPath, ProcessCommandLine` },
+| project Timestamp, DeviceName, AccountName, FolderPath, ProcessCommandLine` },
 
   // ── PRIVILEGE ESCALATION ──────────────────────────────────────────────────
   { id:"K8s-PRIV-001", name:"Container escape", tactic:"privilege-escalation", type:"k8s",
@@ -504,10 +508,12 @@ CloudProcessEvents
     examples:["GPU pods often deployed privileged — common in AI workloads"],
     kql:`// AI workloads running privileged - high risk
 CloudAuditEvents
-| where ActionType == "CreatePod"
+| where DataSource == "Kubernetes Audit"
+| where ActionType == "Create"
+| where tostring(RawEventData.objectRef.resource) == "pods"
 | where RawEventData has "privileged" and RawEventData has "true"
 | where RawEventData has_any("gpu","cuda","nvidia","vllm","ray","comfyui","triton","langflow","ollama")
-| project TimeGenerated, AccountDisplayName, RawEventData` },
+| project Timestamp, AccountDisplayName, RawEventData` },
 
   { id:"K8s-PRIV-003", name:"Cluster-admin via RoleBinding", tactic:"privilege-escalation", type:"k8s",
     desc:"Attacker creates or modifies a ClusterRoleBinding to grant cluster-admin.",
@@ -527,7 +533,7 @@ AzureDiagnostics
 CloudProcessEvents
 | where InitiatingProcessCommandLine has_any("python","node","uvicorn","gunicorn")
 | where ProcessCommandLine has_any("kubectl","kubernetes","patch","clusterrolebinding","--privileged")
-| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
 
   { id:"AI-PRIV-002", name:"Workload identity federation abuse", tactic:"privilege-escalation", type:"ai",
     desc:"AI inference pod has Azure Workload Identity configured. Attacker harvests the projected service account token and exchanges it for an Azure AD token with broader permissions than intended.",
@@ -568,7 +574,7 @@ CloudProcessEvents
 | where ProcessCommandLine has_any("curl","wget","python -c","requests.post")
 | where ProcessCommandLine has_any(".safetensors",".pt ",".pkl",".npz",".gguf")
 | where not(ProcessCommandLine has_any("huggingface.co","azure.com","githubusercontent"))
-| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine` },
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine` },
 
   { id:"AI-DE-002", name:"AI Inference Traffic Obfuscation", tactic:"defense-evasion", type:"ai",
     desc:"C2 communication blends into legitimate LLM API traffic (HTTP POST to port 443, JSON body, similar timing patterns). Traditional beaconing detection rules tuned for binary protocols miss this.",
@@ -578,7 +584,7 @@ CloudProcessEvents
 | where ProcessCommandLine has_any("curl","requests","httpx","aiohttp")
 | where ProcessCommandLine has_any("/v1/","completions","chat/","generate")
 | where not(ProcessCommandLine has_any("openai.azure.com","openai.com","anthropic.com","api.openai"))
-| summarize Count=count(), Destinations=make_set(ProcessCommandLine) by DeviceName, bin(TimeGenerated,5m)
+| summarize Count=count(), Destinations=make_set(ProcessCommandLine) by DeviceName, bin(Timestamp,5m)
 | where Count > 20` },
 
   // ── CREDENTIAL ACCESS ─────────────────────────────────────────────────────
@@ -611,7 +617,7 @@ CloudProcessEvents
 | where ProcessCommandLine has "169.254.169.254"
 | where ProcessCommandLine has_any("metadata","identity","oauth2","token")
 | where not(InitiatingProcessCommandLine has_any("azure-monitor","aad-pod-identity","azure-workload-identity"))
-| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
 
   { id:"AI-CA-001", name:"AI Agent Credential Harvesting", tactic:"credential-access", type:"ai",
     desc:"AI agent with access to multiple tool integrations (GitHub, Jira, Slack, Azure) aggregates all available credentials from env vars, K8s secrets, and config files — providing blast radius far beyond a single system.",
@@ -634,7 +640,7 @@ AzureDiagnostics
 CloudProcessEvents
 | where ProcessCommandLine has_any("OPENAI_API_KEY","AZURE_OPENAI","ANTHROPIC_API_KEY","HUGGING_FACE_HUB_TOKEN")
 | where ProcessCommandLine has_any("env","printenv","cat .env","os.environ")
-| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine` },
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine` },
 
   // ── DISCOVERY ─────────────────────────────────────────────────────────────
   { id:"K8s-DI-001", name:"Access K8s API", tactic:"discovery", type:"k8s",
@@ -708,10 +714,14 @@ AzureDiagnostics
     examples:["Orchestrator agent returns poisoned tool result to sub-agent","MCP tool response contains injected instructions for next agent"],
     kql:`// Multi-agent lateral tool calls - unusual cross-namespace API activity
 CloudAuditEvents
-| where ActionType has_any("CreatePod","ExecCommand","AccessSecret")
+| where DataSource == "Kubernetes Audit"
+| where ActionType in ("Create","Other")
+| where tostring(RawEventData.objectRef.resource) in ("pods","secrets","configmaps")
+    or tostring(RawEventData.requestURI) has "/exec"
 | where RawEventData has_any("agent","mcp","a2a","orchestrat")
 | where not(RawEventData has "system:serviceaccount:kube-system")
-| project TimeGenerated, AccountDisplayName, ActionType, RawEventData` },
+| project Timestamp, AccountDisplayName, ActionType,
+    Resource=tostring(RawEventData.objectRef.resource), RawEventData` },
 
   { id:"AI-LM-002", name:"IMDS-Based Cloud Identity Pivot", tactic:"lateral-movement", type:"ai",
     desc:"AI inference pod harvests IMDS token, exchanges for Azure AD access token, then accesses other Azure services (Key Vault, Storage, Azure OpenAI) beyond the intended pod scope.",
@@ -722,9 +732,9 @@ CloudProcessEvents
 | join kind=inner (
     CloudProcessEvents
     | where ProcessCommandLine has_any("management.azure.com","vault.azure.net","blob.core.windows.net")
-    | where TimeGenerated > ago(10m)
+    | where Timestamp > ago(10m)
   ) on DeviceName
-| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine, ProcessCommandLine1` },
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine, ProcessCommandLine1` },
 
   // ── IMPACT ────────────────────────────────────────────────────────────────
   { id:"K8s-IM-001", name:"Data destruction", tactic:"impact", type:"k8s",
@@ -739,7 +749,7 @@ CloudProcessEvents
 CloudProcessEvents
 | where ProcessCommandLine has_any("xmrig","xmr","monero","stratum+tcp","pool.supportxmr","minexmr","nicehash")
     or ProcessCommandLine matches regex @"--algo\s+(rx|cn|kawpow)"
-| project TimeGenerated, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
+| project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
 
   { id:"K8s-IM-003", name:"Denial of service", tactic:"impact", type:"k8s",
     desc:"Exhausting cluster resources (CPU, memory, storage) to disrupt services.",
@@ -756,10 +766,13 @@ CloudProcessEvents
     examples:["Ray job submission with xmrig binary","K8s Job with nvidia.com/gpu: 8 running miner"],
     kql:`// GPU job creation outside normal hours or by unexpected identity
 CloudAuditEvents
-| where ActionType in ("CreateJob","CreatePod")
+| where DataSource == "Kubernetes Audit"
+| where ActionType == "Create"
+| where tostring(RawEventData.objectRef.resource) in ("jobs","pods")
 | where RawEventData has "nvidia.com/gpu" or RawEventData has "amd.com/gpu"
 | where RawEventData !has_any("ray-worker","vllm-server","triton-server","model-inference")
-| project TimeGenerated, AccountDisplayName, ActionType, RawEventData` },
+| project Timestamp, AccountDisplayName,
+    Resource=tostring(RawEventData.objectRef.resource), RawEventData` },
 
   { id:"AI-IM-002", name:"Model Weight Exfiltration", tactic:"impact", type:"ai",
     desc:"Exfiltration of proprietary model weights, fine-tuning datasets, or RLHF data representing significant IP value. Models may be multi-GB requiring different exfiltration techniques.",
