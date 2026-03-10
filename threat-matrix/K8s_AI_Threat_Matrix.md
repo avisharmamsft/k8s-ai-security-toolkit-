@@ -5,6 +5,9 @@
 Base matrix: [microsoft.github.io/Threat-Matrix-for-Kubernetes](https://microsoft.github.io/Threat-Matrix-for-Kubernetes/)  
 Extensions by: Diwas Sedai & Avi Sharma, Microsoft Defender for Cloud, February 2026
 
+<img width="1582" height="683" alt="image" src="https://github.com/user-attachments/assets/8f3bb72b-951a-4ee0-8b47-943ddd0a3dfb" />
+
+
 ---
 
 ## How to Read This Matrix
