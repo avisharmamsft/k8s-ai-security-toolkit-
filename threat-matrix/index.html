@@ -271,6 +271,172 @@
 
   .tactic-header-row th { border-bottom: 2px solid var(--tactic-border); }
 
+  /* ── Tab navigation ───────────────────────────────────────────── */
+  .tab-nav {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+  }
+
+  .tab-btn {
+    background: none;
+    border: 1px solid transparent;
+    border-bottom: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: 6px 6px 0 0;
+    position: relative;
+    bottom: -1px;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .tab-btn:hover { color: var(--text); background: var(--surface); }
+
+  .tab-btn.active {
+    color: #fff;
+    background: var(--surface);
+    border-color: var(--border);
+    border-bottom-color: var(--surface);
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Mitigations panel ─────────────────────────────────────────── */
+  .mit-intro {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+
+  .mit-intro a { color: #58a6ff; text-decoration: none; }
+
+  .mit-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin: 28px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mit-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 8px;
+  }
+
+  .mit-table th {
+    background: var(--tactic-bg);
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 7px 12px;
+    text-align: left;
+    border: 1px solid var(--border);
+  }
+
+  .mit-table td {
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .mit-table tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  .mit-table tr:hover td { background: var(--surface); }
+
+  .mit-id {
+    font-family: 'Cascadia Code', Consolas, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .mit-id.ai-mit { color: var(--ai-text); }
+  .mit-id.ms-mit { color: #58a6ff; }
+
+  .mit-name { color: var(--text); font-weight: 600; }
+  .mit-desc { color: var(--text-muted); font-size: 12px; margin-top: 3px; }
+
+  .mit-techniques {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .mit-tech-pill {
+    font-family: monospace;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    background: var(--bg);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .mit-tech-pill:hover {
+    border-color: var(--ai-border);
+    color: var(--ai-text);
+  }
+
+  .mit-tech-pill.ai-pill {
+    border-color: rgba(212,134,10,0.35);
+    color: var(--ai-text);
+    background: rgba(212,134,10,0.08);
+  }
+
+  /* ── Modal mitigation rows ─────────────────────────────────────── */
+  .modal-mit-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+
+  .modal-mit-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color 0.12s, background 0.12s;
+  }
+
+  .modal-mit-row:hover { border-color: #58a6ff; background: rgba(88,166,255,0.05); }
+  .modal-mit-row.ai-row { border-color: rgba(212,134,10,0.35); }
+  .modal-mit-row.ai-row:hover { border-color: var(--ai-border); background: rgba(212,134,10,0.07); }
+
+  .modal-mit-badge {
+    font-family: monospace;
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+    padding: 2px 7px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .modal-mit-badge.ai  { background: rgba(212,134,10,0.2); color: var(--ai-text); border: 1px solid rgba(212,134,10,0.4); }
+  .modal-mit-badge.ms  { background: rgba(31,111,235,0.15); color: #58a6ff; border: 1px solid rgba(31,111,235,0.4); }
+
+  .modal-mit-text { flex: 1; }
+  .modal-mit-name { font-size: 12px; font-weight: 600; color: var(--text); display: block; }
+  .modal-mit-oneliner { font-size: 11px; color: var(--text-muted); margin-top: 1px; display: block; line-height: 1.4; }
+
   @media (max-width: 900px) {
     body { padding: 12px; }
     header h1 { font-size: 20px; }
@@ -283,6 +449,13 @@
   <h1>🛡️ K8s + AI Workload Threat Matrix</h1>
   <p>Extended from <a href="https://microsoft.github.io/Threat-Matrix-for-Kubernetes/" target="_blank">microsoft.github.io/Threat-Matrix-for-Kubernetes</a> · AI-layer extensions in orange · Click any technique for details &amp; KQL</p>
 </header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('matrix')">☸️ Threat Matrix</button>
+  <button class="tab-btn" onclick="switchTab('mitigations')">🛡️ Mitigations</button>
+</nav>
+
+<div id="tab-matrix" class="tab-panel active">
 
 <div class="legend">
   <div class="legend-item"><div class="legend-box k8s"></div><span>Existing K8s technique</span></div>
@@ -298,6 +471,20 @@
 </table>
 </div>
 
+</div><!-- /tab-matrix -->
+
+<div id="tab-mitigations" class="tab-panel">
+  <p class="mit-intro">
+    AI-layer mitigations specific to Kubernetes AI workloads. Each entry uses the <code style="color:var(--ai-text);font-size:11px">AI-M</code> prefix to distinguish from the base
+    <a href="https://microsoft.github.io/Threat-Matrix-for-Kubernetes/mitigations/" target="_blank">Microsoft K8s mitigations (MS-M9001–MS-M9032)</a>,
+    which are also referenced per technique. Click any technique pill to open its detail popup.
+  </p>
+  <div id="ai-mit-table-container"></div>
+  <div class="mit-section-title">Referenced Microsoft K8s Mitigations (MS-M)</div>
+  <p class="mit-intro" style="margin-bottom:16px">The following base-layer mitigations from the Microsoft Kubernetes Threat Matrix are referenced by AI techniques above. Follow each link for full details.</p>
+  <div id="ms-mit-table-container"></div>
+</div><!-- /tab-mitigations -->
+
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal" id="modal">
     <div class="modal-header">
@@ -309,6 +496,99 @@
 </div>
 
 <script>
+// ── Tab switching ─────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    if (b.getAttribute('onclick').includes("'" + name + "'")) b.classList.add('active');
+  });
+}
+
+// ── AI-M Mitigation library ───────────────────────────────────────────────
+const aiMitigations = [
+  { id: "AI-M001", name: "Require authentication on AI framework endpoints",
+    desc: "Block unauthenticated access to Ray, vLLM, Ollama, Langflow APIs and dashboards via NetworkPolicy and service-level auth.",
+    oneliner: "Enforce auth on all AI framework APIs and dashboards before exposing them." },
+  { id: "AI-M002", name: "Block IMDS access from AI namespaces",
+    desc: "Egress NetworkPolicy denying 169.254.169.254/32 from inference pods prevents credential harvesting from the Azure Instance Metadata Service.",
+    oneliner: "Deny egress to 169.254.169.254/32 from all AI namespace pods." },
+  { id: "AI-M003", name: "Enforce model artifact integrity",
+    desc: "Verify .safetensors/.pt files via hash pinning or sigstore before load. Block raw pickle-format .pt files in production environments.",
+    oneliner: "Pin model file hashes; reject unverified pickle artifacts in prod." },
+  { id: "AI-M004", name: "Restrict runtime package installation",
+    desc: "OPA/Gatekeeper policy blocking pip/npm exec at runtime; enforce immutable container filesystems so supply chain attacks can't install at runtime.",
+    oneliner: "Block runtime pip/npm install via policy; use immutable container filesystems." },
+  { id: "AI-M005", name: "Scope AI workload identities to minimum required permissions",
+    desc: "Assign a separate Workload Identity per AI component scoped to specific resource IDs — not subscription-wide Contributor or Owner roles.",
+    oneliner: "One Workload Identity per AI component; restrict to specific resource IDs only." },
+  { id: "AI-M006", name: "Sandbox AI framework tool permissions",
+    desc: "Explicitly allowlist tools available to agents; deny kubectl/az/shell access unless required. Require human-in-the-loop approval for any destructive or privileged actions.",
+    oneliner: "Allowlist agent tools; deny shell/kubectl access; require human approval for destructive actions." },
+  { id: "AI-M007", name: "Isolate AI namespaces with NetworkPolicy",
+    desc: "Apply default-deny ingress/egress NetworkPolicies to all AI namespaces. Permit only explicitly required service-to-service paths.",
+    oneliner: "Default-deny network policies for AI namespaces; allowlist only required paths." },
+  { id: "AI-M008", name: "Scan and gate model artifacts in registry",
+    desc: "Scan model files for pickle exploits and embedded malware before publishing to shared registries. Enforce digest pinning and prohibit :latest tags in production.",
+    oneliner: "Scan model artifacts for malware; enforce digest pinning, no :latest in prod." },
+  { id: "AI-M009", name: "Protect AI framework credential stores",
+    desc: "Encrypt LangChain, AutoGen, and similar framework configs at rest. Store API keys in Azure Key Vault — not in .env files, environment variables, or plaintext config.",
+    oneliner: "Store AI API keys in Key Vault; never in .env files or env vars." },
+  { id: "AI-M010", name: "Monitor and alert on AI-specific process patterns",
+    desc: "Enable Defender for Containers with custom alert rules for: pip install at runtime, IMDS calls from inference pods, shell spawns from AI framework processes, and large blob transfers from model storage.",
+    oneliner: "Alert on pip-at-runtime, IMDS from inference pods, and shell spawns from AI processes." },
+];
+
+// ── MS-M mitigations referenced by AI techniques ─────────────────────────
+// Base URL for Microsoft's mitigation pages
+const MS_BASE = "https://microsoft.github.io/Threat-Matrix-for-Kubernetes/";
+const msMitigations = {
+  "MS-M9003": { name: "Adhere to least-privilege principle",       oneliner: "Grant minimum required permissions to ServiceAccounts and workload identities.",           url: MS_BASE + "MS-M9003%20Adhere%20to%20least-privilege%20principle/" },
+  "MS-M9005": { name: "Image assurance policy",                    oneliner: "Evaluate container images for vulnerabilities and malware before deployment.",              url: MS_BASE + "MS-M9005/" },
+  "MS-M9007": { name: "Network intrusion prevention",              oneliner: "Use IDS signatures and WAF to block traffic at network boundaries.",                        url: MS_BASE + "MS-M9007%20Network%20Intrusion%20Prevention/" },
+  "MS-M9008": { name: "Limit access to services over network",     oneliner: "Restrict which services are reachable from outside the cluster.",                          url: MS_BASE + "MS-M9008%20Limit%20Access%20to%20Services%20Over%20Network/" },
+  "MS-M9009": { name: "Require strong authentication to services", oneliner: "Enforce authentication before access to cluster services.",                                url: MS_BASE + "MS-M9009%20Require%20Strong%20Authentication%20to%20Services/" },
+  "MS-M9010": { name: "Restrict exec commands on pods",            oneliner: "Limit or audit kubectl exec/attach access to running containers.",                         url: MS_BASE + "MS-M9010%20Restrict%20Exec%20Commands%20on%20Pods/" },
+  "MS-M9012": { name: "Remove tools from container images",        oneliner: "Strip curl, wget, bash, and other offensive tools from production images.",                url: MS_BASE + "MS-M9012%20Remove%20Tools%20from%20Container%20Images/" },
+  "MS-M9013": { name: "Restrict over-permissive containers",       oneliner: "Deny privileged containers and cap Linux capabilities via Pod Security Standards.",       url: MS_BASE + "MS-M9013%20Restrict%20over%20permissive%20containers/" },
+  "MS-M9014": { name: "Network segmentation",                      oneliner: "Restrict inbound/outbound pod traffic using Kubernetes NetworkPolicies.",                  url: MS_BASE + "MS-M9014%20Network%20Segmentation/" },
+  "MS-M9015": { name: "Avoid running management interface on containers", oneliner: "Do not expose admin UIs (dashboards, debug endpoints) from containers.",           url: MS_BASE + "MS-M9015%20Avoid%20Running%20Management%20Interface%20on%20Containers/" },
+  "MS-M9016": { name: "Restrict file and directory permissions",   oneliner: "Enforce read-only filesystems and tight file permissions on container mounts.",            url: MS_BASE + "MS-M9016%20Restrict%20File%20and%20Directory%20Permissions/" },
+  "MS-M9018": { name: "Restricting cloud metadata API access",     oneliner: "Block pod access to the cloud instance metadata service (IMDS) via NetworkPolicy.",       url: MS_BASE + "MS-M9018%20Restricting%20cloud%20metadata%20API%20access/" },
+  "MS-M9019": { name: "Allocate specific identities to pods",      oneliner: "Assign dedicated Workload Identities per pod rather than reusing broad identities.",      url: MS_BASE + "MS-M9019%20Allocate%20specific%20identities%20to%20pods/" },
+  "MS-M9020": { name: "Collect logs to remote data storage",       oneliner: "Forward audit and container logs to tamper-resistant remote storage.",                    url: MS_BASE + "MS-M9020%20Collect%20Logs%20to%20Remote%20Data%20Storage/" },
+  "MS-M9022": { name: "Use managed secret store",                  oneliner: "Store secrets in Azure Key Vault or a managed secret provider, not in K8s Secrets.",     url: MS_BASE + "MS-M9022%20Use%20Managed%20Secret%20Store/" },
+  "MS-M9025": { name: "Disable service account auto mount",        oneliner: "Set automountServiceAccountToken: false on pods that do not need K8s API access.",        url: MS_BASE + "MS-M9025%20Disable%20Service%20Account%20Auto%20Mount/" },
+  "MS-M9026": { name: "Avoid using plain text credentials",        oneliner: "Never store credentials in ConfigMaps, env vars, or container image layers.",             url: MS_BASE + "MS-M9026%20Avoid%20using%20plain%20text%20credentials%20in%20configuration%20files/" },
+  "MS-M9029": { name: "Set requests and limits for containers",    oneliner: "Define CPU/memory and GPU resource limits to prevent resource hijacking.",                url: MS_BASE + "MS-M9029%20Set%20requests%20and%20limits%20for%20containers/" },
+};
+
+// ── Per-technique mitigation mapping ─────────────────────────────────────
+// { aiMits: ["AI-M001",...], msMits: ["MS-M9008",...] }
+const techMitigations = {
+  "AI-IA-001": { aiMits: ["AI-M001","AI-M007"], msMits: ["MS-M9008","MS-M9009","MS-M9014"] },
+  "AI-IA-002": { aiMits: ["AI-M001","AI-M007"], msMits: ["MS-M9008","MS-M9009","MS-M9015"] },
+  "AI-EX-001": { aiMits: ["AI-M003","AI-M008"], msMits: ["MS-M9005","MS-M9012"] },
+  "AI-EX-002": { aiMits: ["AI-M006"],           msMits: ["MS-M9003","MS-M9010"] },
+  "AI-EX-003": { aiMits: ["AI-M004","AI-M008"], msMits: ["MS-M9005","MS-M9012"] },
+  "AI-PE-001": { aiMits: ["AI-M003","AI-M008"], msMits: ["MS-M9005","MS-M9016"] },
+  "AI-PE-002": { aiMits: ["AI-M004"],           msMits: ["MS-M9005","MS-M9016"] },
+  "AI-PRIV-001": { aiMits: ["AI-M006"],         msMits: ["MS-M9003","MS-M9010","MS-M9013"] },
+  "AI-PRIV-002": { aiMits: ["AI-M005"],         msMits: ["MS-M9003","MS-M9019"] },
+  "AI-DE-001":  { aiMits: ["AI-M008"],           msMits: ["MS-M9005"] },
+  "AI-DE-002":  { aiMits: ["AI-M007","AI-M010"], msMits: ["MS-M9007","MS-M9014"] },
+  "AI-CA-001":  { aiMits: ["AI-M009","AI-M006"], msMits: ["MS-M9022","MS-M9025","MS-M9026"] },
+  "AI-CA-002":  { aiMits: ["AI-M009"],           msMits: ["MS-M9022","MS-M9026"] },
+  "AI-DI-001":  { aiMits: ["AI-M006"],           msMits: ["MS-M9003","MS-M9010"] },
+  "AI-DI-002":  { aiMits: ["AI-M006","AI-M007"], msMits: ["MS-M9003","MS-M9014"] },
+  "AI-LM-001":  { aiMits: ["AI-M006","AI-M007"], msMits: ["MS-M9003","MS-M9014"] },
+  "AI-LM-002":  { aiMits: ["AI-M002","AI-M005"], msMits: ["MS-M9018","MS-M9019"] },
+  "AI-IM-001":  { aiMits: ["AI-M006","AI-M007"], msMits: ["MS-M9003","MS-M9013","MS-M9029"] },
+  "AI-IM-002":  { aiMits: ["AI-M007","AI-M010"], msMits: ["MS-M9014","MS-M9016"] },
+  "AI-IM-003":  { aiMits: ["AI-M005","AI-M010"], msMits: ["MS-M9019","MS-M9020"] },
+};
+
 const tactics = [
   { id: "initial-access",       name: "Initial Access" },
   { id: "execution",            name: "Execution" },
@@ -840,12 +1120,49 @@ for (let r = 0; r < maxRows; r++) {
 
 function openModal(tech) {
   document.getElementById("modal-title").textContent = tech.name;
-  const tag = tech.type === 'ai' ? '<span class="modal-tag ai">🤖 AI-Layer Extension</span>' : '<span class="modal-tag k8s">☸️ K8s Technique</span>';
+  const tag = tech.type === 'ai'
+    ? '<span class="modal-tag ai">🤖 AI-Layer Extension</span>'
+    : '<span class="modal-tag k8s">☸️ K8s Technique</span>';
   let html = tag;
   html += `<div class="modal-section"><h4>Description</h4><p>${tech.desc}</p></div>`;
   if (tech.examples?.length) {
     html += `<div class="modal-section"><h4>Examples</h4><ul>${tech.examples.map(e=>`<li>${e}</li>`).join('')}</ul></div>`;
   }
+
+  // Mitigations section — only for AI techniques that have mappings
+  const mits = techMitigations[tech.id];
+  if (mits) {
+    html += `<div class="modal-section"><h4>Mitigations</h4><div class="modal-mit-list">`;
+
+    // AI-M entries — link to mitigations tab anchor
+    mits.aiMits.forEach(id => {
+      const m = aiMitigations.find(x => x.id === id);
+      if (!m) return;
+      html += `<a class="modal-mit-row ai-row" href="#" onclick="switchTab('mitigations');closeModal();return false;">
+        <span class="modal-mit-badge ai">${m.id}</span>
+        <span class="modal-mit-text">
+          <span class="modal-mit-name">${m.name}</span>
+          <span class="modal-mit-oneliner">${m.oneliner}</span>
+        </span>
+      </a>`;
+    });
+
+    // MS-M entries — link to Microsoft's docs
+    mits.msMits.forEach(id => {
+      const m = msMitigations[id];
+      if (!m) return;
+      html += `<a class="modal-mit-row" href="${m.url}" target="_blank" rel="noopener">
+        <span class="modal-mit-badge ms">${id}</span>
+        <span class="modal-mit-text">
+          <span class="modal-mit-name">${m.name}</span>
+          <span class="modal-mit-oneliner">${m.oneliner}</span>
+        </span>
+      </a>`;
+    });
+
+    html += `</div></div>`;
+  }
+
   if (tech.kql) {
     html += `<div class="modal-section"><h4>KQL Hunt Query</h4><div class="kql-block">${tech.kql.trim()}</div></div>`;
   }
@@ -862,6 +1179,83 @@ document.getElementById("modal-overlay").addEventListener("click", e => {
 });
 
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+// ── Build mitigations panel ───────────────────────────────────────────────
+
+// Compute which techniques reference each AI-M
+const aiMitToTechs = {};
+aiMitigations.forEach(m => { aiMitToTechs[m.id] = []; });
+Object.entries(techMitigations).forEach(([techId, mits]) => {
+  mits.aiMits.forEach(mid => {
+    if (aiMitToTechs[mid]) aiMitToTechs[mid].push(techId);
+  });
+});
+
+// Compute which techniques reference each MS-M
+const msMitToTechs = {};
+Object.keys(msMitigations).forEach(id => { msMitToTechs[id] = []; });
+Object.entries(techMitigations).forEach(([techId, mits]) => {
+  mits.msMits.forEach(mid => {
+    if (msMitToTechs[mid]) msMitToTechs[mid].push(techId);
+  });
+});
+
+function techPill(techId) {
+  const tech = techniques.find(t => t.id === techId);
+  const cls = tech?.type === 'ai' ? 'ai-pill' : '';
+  return `<span class="mit-tech-pill ${cls}" onclick="openTechById('${techId}')">${techId}</span>`;
+}
+
+function openTechById(id) {
+  const tech = techniques.find(t => t.id === id);
+  if (tech) { switchTab('matrix'); setTimeout(() => openModal(tech), 50); }
+}
+
+// Render AI-M table
+const aiContainer = document.getElementById('ai-mit-table-container');
+let aiHtml = `<div class="mit-section-title">AI Workload Mitigations (AI-M)</div>
+<table class="mit-table">
+<thead><tr>
+  <th style="width:120px">ID</th>
+  <th style="width:220px">Name</th>
+  <th>Description</th>
+  <th style="width:200px">Techniques</th>
+</tr></thead><tbody>`;
+
+aiMitigations.forEach(m => {
+  const pills = (aiMitToTechs[m.id] || []).map(techPill).join('');
+  aiHtml += `<tr>
+    <td><span class="mit-id ai-mit">${m.id}</span></td>
+    <td><span class="mit-name">${m.name}</span></td>
+    <td><span class="mit-desc">${m.desc}</span></td>
+    <td><div class="mit-techniques">${pills || '<span style="color:var(--text-muted);font-size:11px">—</span>'}</div></td>
+  </tr>`;
+});
+aiHtml += '</tbody></table>';
+aiContainer.innerHTML = aiHtml;
+
+// Render MS-M table
+const msContainer = document.getElementById('ms-mit-table-container');
+let msHtml = `<table class="mit-table">
+<thead><tr>
+  <th style="width:120px">ID</th>
+  <th style="width:220px">Name</th>
+  <th>Description</th>
+  <th style="width:200px">Referenced by</th>
+</tr></thead><tbody>`;
+
+Object.entries(msMitigations).forEach(([id, m]) => {
+  const pills = (msMitToTechs[id] || []).map(techPill).join('');
+  msHtml += `<tr>
+    <td><a href="${m.url}" target="_blank" rel="noopener" style="text-decoration:none"><span class="mit-id ms-mit">${id} ↗</span></a></td>
+    <td><span class="mit-name">${m.name}</span></td>
+    <td><span class="mit-desc">${m.oneliner}</span></td>
+    <td><div class="mit-techniques">${pills || '<span style="color:var(--text-muted);font-size:11px">—</span>'}</div></td>
+  </tr>`;
+});
+msHtml += '</tbody></table>';
+msContainer.innerHTML = msHtml;
+
 </script>
 </body>
 </html>
