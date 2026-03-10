@@ -3,6 +3,8 @@
 **Building on Microsoft's Kubernetes Threat Matrix with AI-Layer Extensions**
 
 Base matrix: [microsoft.github.io/Threat-Matrix-for-Kubernetes](https://microsoft.github.io/Threat-Matrix-for-Kubernetes/)  
+Interactive matrix: [interactive matrix](https://htmlpreview.github.io/?https://github.com/avisharmamsft/k8s-ai-security-toolkit/blob/d996d27762d046b471358d15ae125180f2a5c5a6/threat-matrix/index.html)
+
 Extensions by: Avi Sharma, Microsoft Defender for Cloud, March 2026
 
 <img width="2099" height="627" alt="image" src="https://github.com/user-attachments/assets/500d7d49-1eab-4af6-8a9e-d356d98e0081" />
