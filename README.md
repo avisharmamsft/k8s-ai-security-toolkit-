@@ -106,7 +106,7 @@ CloudProcessEvents
 If you use these resources in your research or security operations, please cite:
 
 ```
-Sedai, D., & Sharma, A. (2026). Supply Chain Attacks on AI Workloads in Kubernetes.
+Sharma, A. (2026). Supply Chain Attacks on AI Workloads in Kubernetes.
 Microsoft Defender Experts S.T.A.R. Forum. https://github.com/avisharmamsft/k8s-ai-security-toolkit
 ```
 
@@ -127,4 +127,3 @@ Questions or feedback? Reach out via:
 ---
 
 **Last Updated:** March 2026  
-**License:** MIT
