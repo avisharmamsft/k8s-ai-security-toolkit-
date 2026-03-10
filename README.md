@@ -29,8 +29,8 @@ This repository contains production-ready security resources for detecting and d
 ### 3. **KQL Hunting Query Pack**
 - `kql/hunting-queries.kql` - Full query pack (9 sections, 20+ queries) covering:
   - **Section 0** — AI workload discovery (namespace, image, GPU, Security Explorer)
-  - **Section 1** — Runtime pip/npm installs (dependency confusion, Cline/ClawHavoc class attacks)
-  - **Section 2** — IMDS token harvest and az CLI pivot (the 86-second attack pattern)
+  - **Section 1** — Runtime pip/npm installs (dependency confusion, malicious postinstall patterns)
+  - **Section 2** — IMDS token harvest and az CLI pivot
   - **Section 3** — AI framework process anomalies (kubectl abuse, LangGrinch CVE-2025-68664, pickle deserialization)
   - **Section 4** — Sidecar injection and webhook abuse
   - **Section 5** — CI/CD pipeline dependency drift
