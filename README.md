@@ -28,16 +28,16 @@ This repository contains production-ready security resources for detecting and d
 
 ### 3. **KQL Hunting Query Pack**
 - `kql/hunting-queries.kql` - Full query pack (9 sections, 20+ queries) covering:
-  - **Section 0** — AI workload discovery (namespace, image, GPU, Security Explorer)
-  - **Section 1** — Runtime pip/npm installs (dependency confusion, malicious postinstall patterns)
-  - **Section 2** — IMDS token harvest and az CLI pivot
-  - **Section 3** — AI framework process anomalies (kubectl abuse, LangGrinch CVE-2025-68664, pickle deserialization)
-  - **Section 4** — Sidecar injection and webhook abuse
-  - **Section 5** — CI/CD pipeline dependency drift
-  - **Section 6** — Cryptomining in AI/GPU pods
-  - **Section 7** — Sentinel / Log Analytics queries (SecurityAlert, kube-audit, Entra AuditLogs)
-  - **Section 8** — Scheduled alert rule templates
-  - **Section 9** — Agent tool-call drift baseline and CI SPN pivot detection
+  - **Section 0** - AI workload discovery (namespace, image, GPU, Security Explorer)
+  - **Section 1** - Runtime pip/npm installs (dependency confusion, malicious postinstall patterns)
+  - **Section 2** - IMDS token harvest and az CLI pivot
+  - **Section 3** - AI framework process anomalies (kubectl abuse, LangGrinch CVE-2025-68664, pickle deserialization)
+  - **Section 4** - Sidecar injection and webhook abuse
+  - **Section 5** - CI/CD pipeline dependency drift
+  - **Section 6** - Cryptomining in AI/GPU pods
+  - **Section 7** - Sentinel / Log Analytics queries (SecurityAlert, kube-audit, Entra AuditLogs)
+  - **Section 8** - Scheduled alert rule templates
+  - **Section 9** - Agent tool-call drift baseline and CI SPN pivot detection
 - `kql/06-multi-dataset-correlation.kql` - **ADVANCED:** Full kill-chain correlation across K8s audit + process events + ARM logs + Entra sign-in logs
 - `kql/07-identify-ai-workloads.kql` - **NEW:** Multi-method AI workload inventory with risk scoring
 
