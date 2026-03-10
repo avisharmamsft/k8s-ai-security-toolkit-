@@ -5,7 +5,8 @@
 Base matrix: [microsoft.github.io/Threat-Matrix-for-Kubernetes](https://microsoft.github.io/Threat-Matrix-for-Kubernetes/)  
 Extensions by: Avi Sharma, Microsoft Defender for Cloud, March 2026
 
-<img width="1582" height="683" alt="image" src="https://github.com/user-attachments/assets/8f3bb72b-951a-4ee0-8b47-943ddd0a3dfb" />
+<img width="2099" height="627" alt="image" src="https://github.com/user-attachments/assets/500d7d49-1eab-4af6-8a9e-d356d98e0081" />
+
 
 
 ---
@@ -151,7 +152,7 @@ Microsoft Kubernetes Threat Matrix Team
 **AI Extensions:**  
 Diwas Sedai & Avi Sharma  
 Microsoft Defender for Cloud Research Team  
-February 2026
+March 2026
 
 **Methodology:**  
 Based on analysis of real-world incidents (ShadowRay, Langflow CVE-2025-3248, malicious MCP servers), Microsoft telemetry from production AKS clusters, and offensive security research.
@@ -159,5 +160,5 @@ Based on analysis of real-world incidents (ShadowRay, Langflow CVE-2025-3248, ma
 ---
 
 **Version:** 1.0  
-**Last Updated:** February 18, 2026  
-**License:** Creative Commons Attribution 4.0 International (CC BY 4.0)
+**Last Updated:** March, 2026  
+
