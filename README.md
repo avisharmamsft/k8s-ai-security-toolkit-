@@ -16,53 +16,40 @@ This repository contains production-ready security resources for detecting and d
 
 ### 1. **Extended Kubernetes + AI Threat Matrix**
 - `threat-matrix/K8s_AI_Threat_Matrix.md` - Markdown version
-- `threat-matrix/K8s_AI_Threat_Matrix.xlsx` - Excel version with filtering
+- `threat-matrix/threat-matrix.xlsx` - Excel version with filtering
+- `threat-matrix/index.html` - [Interactive version](https://htmlpreview.github.io/?https://github.com/avisharmamsft/k8s-ai-security-toolkit/blob/main/threat-matrix/index.html)
 - Shows base Kubernetes threat techniques (from [Microsoft's K8s Threat Matrix](https://microsoft.github.io/Threat-Matrix-for-Kubernetes/))
 - **NEW:** AI-layer extensions covering model artifacts, agentic systems, and ML-specific attack paths
 
-### 2. **Azure CLI Audit Scripts**
-- `scripts/enumerate-exposed-endpoints.sh` - Find publicly exposed AI framework endpoints (Ray, MLflow, Langflow)
-- `scripts/audit-service-accounts.sh` - Identify over-permissioned ServiceAccounts with cloud access
-- `scripts/detect-mutable-tags.sh` - Find images using mutable tags (not pinned to digest)
-- `scripts/gpu-pod-privileges.sh` - Enumerate GPU pods with elevated privileges
+### 2. **Azure CLI Audit Script**
+- `audit-scripts/audit-ai-workloads.sh` - Comprehensive AKS security audit covering exposed endpoints, over-permissioned ServiceAccounts, mutable image tags, and GPU pod privileges
 
-**Requirements:** Azure CLI, jq, kubectl
+**Requirements:** Azure CLI 2.50+, jq, kubectl
 
 ### 3. **KQL Hunting Query Pack**
-- `kql/01-python-spawning-shell.kql` - Python processes spawning bash/curl in GPU pods
-- `kql/02-metadata-endpoint-access.kql` - IMDS credential harvesting detection
-- `kql/03-mutable-tag-drift.kql` - Registry tag mutation over time
-- `kql/04-runtime-pip-install.kql` - Dependency confusion via runtime package installs
-- `kql/05-langflow-rce-detection.kql` - CVE-2025-3248 exploit attempts
-- `kql/06-multi-dataset-correlation.kql` - **ADVANCED:** Correlates K8s audit + process events + ARM logs + Entra logs
-- `kql/07-identify-ai-workloads.kql` - **NEW:** How to identify AI workloads in your clusters
+- `kql/hunting-queries.kql` - Full query pack (9 sections, 20+ queries) covering:
+  - **Section 0** — AI workload discovery (namespace, image, GPU, Security Explorer)
+  - **Section 1** — Runtime pip/npm installs (dependency confusion, Cline/ClawHavoc class attacks)
+  - **Section 2** — IMDS token harvest and az CLI pivot (the 86-second attack pattern)
+  - **Section 3** — AI framework process anomalies (kubectl abuse, LangGrinch CVE-2025-68664, pickle deserialization)
+  - **Section 4** — Sidecar injection and webhook abuse
+  - **Section 5** — CI/CD pipeline dependency drift
+  - **Section 6** — Cryptomining in AI/GPU pods
+  - **Section 7** — Sentinel / Log Analytics queries (SecurityAlert, kube-audit, Entra AuditLogs)
+  - **Section 8** — Scheduled alert rule templates
+  - **Section 9** — Agent tool-call drift baseline and CI SPN pivot detection
+- `kql/06-multi-dataset-correlation.kql` - **ADVANCED:** Full kill-chain correlation across K8s audit + process events + ARM logs + Entra sign-in logs
+- `kql/07-identify-ai-workloads.kql` - **NEW:** Multi-method AI workload inventory with risk scoring
 
-**Schema:** Adapted for Azure Log Analytics (AKS), Defender for Cloud, and Sentinel
+**Schema:** Microsoft Defender XDR Advanced Hunting (`CloudProcessEvents`, `CloudAuditEvents`) + Sentinel (`AzureActivity`, `SigninLogs`, `AzureDiagnostics`)
 
 ### 4. **Hardening Checklist**
-- `checklists/hardening-priorities.md` - Prioritized checklist with links to tooling
-- `checklists/hardening-checklist.pdf` - Printable PDF version
+- `checklists/hardening-priorities.md` - Prioritized checklist with implementation examples and links to tooling
 
 **Categories:**
 - 🔴 **Do First (This Week):** Image signing, mutable tag blocking, model hash validation
 - 🟠 **Do Next (This Month):** safetensors migration, GPU pod privilege reduction, ServiceAccount auto-mount
 - 🟢 **Harden (Ongoing):** Network egress policies, CI credential rotation, model file scanning
-
-### 5. **safetensors Migration Guide**
-- `guides/pickle-to-safetensors.md` - Step-by-step migration from PyTorch .pt (pickle) to safetensors
-- Includes code examples, compatibility notes, and validation scripts
-
-### 6. **Incident Response Playbook**
-- `playbooks/ai-supply-chain-ir.md` - 6-step IR playbook for AI supply chain incidents
-- `playbooks/ai-supply-chain-ir.pdf` - Printable version
-
-**Steps:**
-1. Validate Artifact Integrity
-2. Identify Affected Scope
-3. Detect Runtime Anomalies
-4. Assess Credential Exposure
-5. Rotate Secrets & Rebuild
-6. Enforce Artifact Signing
 
 ---
 
@@ -70,26 +57,33 @@ This repository contains production-ready security resources for detecting and d
 
 ### Identify AI Workloads in Your Cluster
 
+Run in **Defender XDR > Advanced Hunting:**
+
 ```kql
-// Run in Azure Log Analytics
-K8S_ProcessEvents
-| where pname has_any ("python", "python3", "uvicorn", "gunicorn")
-| where cmdline has_any ("torch", "tensorflow", "transformers", "langchain", "openai")
-| summarize WorkloadCount=dcount(PodName), 
-            DistinctCommands=make_set(cmdline, 10)
-            by Namespace, Image
+// Discover AI/ML workloads by framework signature
+CloudProcessEvents
+| where Timestamp > ago(7d)
+| where FileName has_any ("python", "python3", "uvicorn", "gunicorn")
+| where ProcessCommandLine has_any ("torch", "tensorflow", "transformers", "langchain", "openai")
+| summarize WorkloadCount=dcount(KubernetesPodName),
+            DistinctCommands=make_set(ProcessCommandLine, 10)
+            by KubernetesNamespace, ContainerImageName
 | where WorkloadCount > 0
-| project Namespace, Image, WorkloadCount, DistinctCommands
+| project KubernetesNamespace, ContainerImageName, WorkloadCount, DistinctCommands
 ```
 
-### Detect Python→Shell in GPU Pods (High-Severity IOC)
+### Detect Python→Shell in AI Pods (High-Severity IOC)
+
+Run in **Defender XDR > Advanced Hunting:**
 
 ```kql
-K8S_ProcessEvents
-| where cmdline has_any ("bash", "sh", "/bin/sh", "curl", "wget")
-| where pname has_any ("python", "python3", "uvicorn")
-| where Namespace has_any ("ml-", "ai-", "gpu-")  // adjust to your naming
-| project TimeCreatedUtc, PodName, Namespace, cmdline, pname, user
+CloudProcessEvents
+| where Timestamp > ago(24h)
+| where ProcessCommandLine has_any ("bash", "sh", "/bin/sh", "curl", "wget")
+| where FileName has_any ("python", "python3", "uvicorn")
+| where KubernetesNamespace has_any ("ml-", "ai-", "gpu-")  // adjust to your naming
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+          ProcessCommandLine, FileName, AccountName
 ```
 
 ---
@@ -102,6 +96,8 @@ K8S_ProcessEvents
 - [safetensors Documentation](https://github.com/huggingface/safetensors)
 - [Cosign (Sigstore)](https://docs.sigstore.dev/cosign/overview/)
 - [Azure Defender for Containers](https://learn.microsoft.com/en-us/azure/defender-for-cloud/defender-for-containers-introduction)
+- [CloudProcessEvents schema reference](https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudprocessevents-table)
+- [CloudAuditEvents schema reference](https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-cloudauditevents-table)
 
 ---
 
@@ -111,7 +107,7 @@ If you use these resources in your research or security operations, please cite:
 
 ```
 Sedai, D., & Sharma, A. (2026). Supply Chain Attacks on AI Workloads in Kubernetes.
-Microsoft Defender Experts S.T.A.R. Forum. https://github.com/[your-repo-path]
+Microsoft Defender Experts S.T.A.R. Forum. https://github.com/avisharmamsft/k8s-ai-security-toolkit
 ```
 
 ---
@@ -131,4 +127,4 @@ Questions or feedback? Reach out via:
 ---
 
 **Last Updated:** March 2026  
-**License:** MIT (see LICENSE file)
+**License:** MIT
