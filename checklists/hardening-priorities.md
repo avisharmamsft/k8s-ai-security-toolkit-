@@ -2,7 +2,7 @@
 
 **Priority-Ordered Security Controls for Supply Chain Protection**
 
-Based on Microsoft Defender for Cloud research, February 2026
+Based on Microsoft Defender for Cloud research, March 2026
 
 ---
 
@@ -302,5 +302,5 @@ Track these metrics monthly:
 
 ---
 
-**Last Updated:** February 2026  
+**Last Updated:** March 2026  
 **Maintained by:** Microsoft Defender for Cloud Research Team
