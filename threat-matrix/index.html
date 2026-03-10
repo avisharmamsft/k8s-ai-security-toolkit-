@@ -708,7 +708,7 @@ AzureDiagnostics
 | where sourceIPs_s !startswith "10." and sourceIPs_s !startswith "172."
 | project TimeGenerated, sourceIPs_s, log_s` },
 
-  { id:"K8s-IA-003", msId:"MS-TA9001", mitreId:"T1078.004", msMits:["MS-M9001","MS-M9002","MS-M9003"], name:"Using cloud credentials", tactic:"initial-access", type:"k8s",
+  { id:"K8s-IA-003", msId:"MS-TA9001", mitreId:"T1078.004, T1078", msMits:["MS-M9001","MS-M9002","MS-M9003"], name:"Using cloud credentials", tactic:"initial-access", type:"k8s",
     desc:"In cases where the Kubernetes cluster is deployed in a public cloud (e.g., AKS in Azure, GKE in GCP, or EKS in AWS), compromised cloud credentials can lead to cluster takeover. Attackers who have access to the cloud account credentials can get access to the cluster's management layer.",
     examples:["Stolen kubeconfig","Azure SP credentials leaked in CI/CD"],
     kql:`// Impossible travel / new location cluster auth
@@ -718,7 +718,7 @@ AuditLogs
 | summarize Locations=make_set(City) by UserPrincipalName, bin(TimeGenerated,1h)
 | where array_length(Locations) > 1` },
 
-  { id:"K8s-IA-004", msId:"MS-TA9002", mitreId:"T1195.002, T1525", msMits:["MS-M9004","MS-M9005","MS-M9009"], name:"Compromised image in registry", tactic:"initial-access", type:"k8s",
+  { id:"K8s-IA-004", msId:"MS-TA9002", mitreId:"T1195.002, T1195, T1525", msMits:["MS-M9004","MS-M9005","MS-M9009"], name:"Compromised image in registry", tactic:"initial-access", type:"k8s",
     desc:"Running a compromised image in a cluster can compromise the cluster. Attackers who get access to a private registry can plant their own compromised images in the registry. The latter can then be pulled by a user. In addition, users often use untrusted images from public registries (such as Docker Hub) that may be malicious. Building images based on untrusted base images can also lead to similar results.",
     examples:["Typosquatted image name","Poisoned base image in supply chain"],
     kql:`// Images pulled from non-approved registries
@@ -791,8 +791,8 @@ AzureDiagnostics
     examples:["kubectl run attacker --image=alpine --privileged"],
     kql:null },
 
-  { id:"K8s-EX-005", msId:"MS-TA9007", mitreId:"T1059", msMits:["MS-M9010","MS-M9011","MS-M9012"], name:"bash/cmd inside container", tactic:"execution", type:"k8s",
-    desc:"Attackers who gain access to a container can run bash or cmd commands inside it. This can be achieved using various tools and interfaces. Attackers may use this access to install tools, exfiltrate data, or move laterally within the cluster.",
+  { id:"K8s-EX-005", msId:"MS-TA9007", mitreId:"T1059", msMits:["MS-M9010","MS-M9011","MS-M9012"], name:"Bash or cmd inside container", tactic:"execution", type:"k8s",
+    desc:"Attackers who have permissions to run a cmd/bash script inside a container can use it to execute malicious code and compromise cluster resources.",
     examples:["Interactive shell via kubectl exec","Reverse shell from compromised workload"],
     kql:`// Detect interactive shell spawns in containers
 CloudProcessEvents
@@ -800,7 +800,7 @@ CloudProcessEvents
 | where InitiatingProcessName !in~ ("kubelet","containerd","dockerd")
 | project Timestamp, KubernetesNamespace, KubernetesPodName, FileName, ProcessCommandLine` },
 
-  { id:"K8s-EX-006", msId:"MS-TA9010", mitreId:"T1021.004", msMits:["MS-M9008","MS-M9009","MS-M9014"], name:"SSH server running inside container", tactic:"execution", type:"k8s",
+  { id:"K8s-EX-006", msId:"MS-TA9010", mitreId:"", msMits:["MS-M9008","MS-M9009","MS-M9014"], name:"SSH server running inside container", tactic:"execution", type:"k8s",
     desc:"An SSH server that is running inside a container may be used by attackers. If attackers gain valid credentials to a container, whether by brute force attempts or by other methods (such as phishing), they can use it to get remote access to the container by SSH. This is a high-risk configuration since containers are not expected to run SSH servers.",
     examples:["SSH daemon in application container","Attacker brute-forces container SSH"],
     kql:`// Detect SSH daemons running inside pods
@@ -856,7 +856,7 @@ CloudAuditEvents
 | where RawEventData !has "ReadOnly"
 | project Timestamp, AccountDisplayName, RawEventData` },
 
-  { id:"K8s-PE-003", msId:"MS-TA9014", mitreId:"T1053.007", msMits:["MS-M9003","MS-M9010","MS-M9017"], name:"Kubernetes CronJob", tactic:"persistence", type:"k8s",
+  { id:"K8s-PE-003", msId:"MS-TA9014", mitreId:"T1053.007, T1053", msMits:["MS-M9003","MS-M9010","MS-M9017"], name:"Kubernetes CronJob", tactic:"persistence", type:"k8s",
     desc:"Attacker creates a CronJob to periodically execute malicious workloads.",
     examples:["CronJob exfiltrating secrets every hour"],
     kql:`// New CronJob creation audit
@@ -871,7 +871,7 @@ AzureDiagnostics
     examples:["Webhook injecting env vars with C2 address"],
     kql:null },
 
-  { id:"K8s-PE-005", msId:"MS-TA9011", mitreId:"T1078.001", msMits:["MS-M9003","MS-M9019","MS-M9025"], name:"Container service account", tactic:"persistence", type:"k8s",
+  { id:"K8s-PE-005", msId:"MS-TA9016", mitreId:"T1528", msMits:["MS-M9003","MS-M9019","MS-M9025"], name:"Container service account", tactic:"persistence", type:"k8s",
     desc:"Service account (SA) represents an application identity in Kubernetes. By default, an SA is mounted to every created pod in the cluster. Attackers who get access to a pod can use the SA token to authenticate with the Kubernetes API server. Attackers may also create new service accounts or steal tokens from existing service accounts for use from inside and outside the cluster.",
     examples:["SA token stolen and used from outside cluster","New SA created with cluster-admin binding"],
     kql:`// Detect new ServiceAccount tokens being created or used
@@ -914,7 +914,7 @@ CloudProcessEvents
     examples:["runc CVE","--privileged container with /proc/sysrq-trigger"],
     kql:null },
 
-  { id:"K8s-PRIV-002", msId:"MS-TA9019", mitreId:"T1078", msMits:["MS-M9003","MS-M9010","MS-M9017"], name:"Cluster-admin binding", tactic:"privilege-escalation", type:"k8s",
+  { id:"K8s-PRIV-002", msId:"MS-TA9019", mitreId:"T1078.003, T1078", msMits:["MS-M9003","MS-M9010","MS-M9017"], name:"Cluster-admin binding", tactic:"privilege-escalation", type:"k8s",
     desc:"Container running with securityContext.privileged=true has near-full node access.",
     examples:["GPU pods often deployed privileged — common in AI workloads"],
     kql:`// AI workloads running privileged - high risk
@@ -937,7 +937,7 @@ AzureDiagnostics
 | where parsed.requestObject.roleRef.name == "cluster-admin"
 | project TimeGenerated, User=parsed.user.username, log_s` },
 
-  { id:"K8s-PRIV-004", msId:"MS-TA9020", mitreId:"T1078.004", msMits:["MS-M9003","MS-M9018","MS-M9019"], name:"Access cloud resources", tactic:"privilege-escalation", type:"k8s",
+  { id:"K8s-PRIV-004", msId:"MS-TA9020", mitreId:"T1078.004, T1078", msMits:["MS-M9003","MS-M9018","MS-M9019"], name:"Access cloud resources", tactic:"privilege-escalation", type:"k8s",
     desc:"If the Kubernetes cluster is deployed in the cloud, in some cases attackers can leverage their access to a single container to get access to other cloud resources outside the cluster. For example, in AKS each node contains a service principal credential that can be used to access cloud resources.",
     examples:["IMDS token used to access Azure storage","Managed Identity abused for cloud pivot"],
     kql:`// Detect IMDS access from pods
@@ -981,7 +981,7 @@ AzureDiagnostics
 | where parsed.verb == "delete" and parsed.objectRef.resource == "events"
 | project TimeGenerated, User=parsed.user.username, Namespace=parsed.objectRef.namespace` },
 
-  { id:"K8s-DE-003", msId:"MS-TA9023", mitreId:"T1036.005", msMits:["MS-M9005","MS-M9013"], name:"Pod / container name similarity", tactic:"defense-evasion", type:"k8s",
+  { id:"K8s-DE-003", msId:"MS-TA9023", mitreId:"T1036.005, T1036", msMits:["MS-M9005","MS-M9013"], name:"Pod / container name similarity", tactic:"defense-evasion", type:"k8s",
     desc:"Malicious workload disguises itself with legitimate-looking names.",
     examples:["Cryptominer named 'kube-proxy'","Process named systemd-udev"],
     kql:null },
@@ -1019,7 +1019,7 @@ CloudProcessEvents
 | where Count > 20` },
 
   // ── CREDENTIAL ACCESS ─────────────────────────────────────────────────────
-  { id:"K8s-CA-001", msId:"MS-TA9025", mitreId:"T1552.007", msMits:["MS-M9003","MS-M9022","MS-M9023","MS-M9025"], name:"List K8s secrets", tactic:"credential-access", type:"k8s",
+  { id:"K8s-CA-001", msId:"MS-TA9025", mitreId:"T1552.007, T1552", msMits:["MS-M9003","MS-M9022","MS-M9023","MS-M9025"], name:"List K8s secrets", tactic:"credential-access", type:"k8s",
     desc:"kubectl get secrets / API call to list secret resources.",
     examples:["ServiceAccount with over-broad RBAC can list all secrets"],
     kql:`// Secret access audit
@@ -1030,7 +1030,7 @@ AzureDiagnostics
 | where parsed.user.username !startswith "system:"
 | project TimeGenerated, User=parsed.user.username, Namespace=parsed.objectRef.namespace, Verb=parsed.verb` },
 
-  { id:"K8s-CA-002", msId:"MS-TA9011", mitreId:"T1528", msMits:["MS-M9003","MS-M9025","MS-M9022"], name:"Container service account", tactic:"credential-access", type:"k8s",
+  { id:"K8s-CA-002", msId:"MS-TA9016", mitreId:"T1528", msMits:["MS-M9003","MS-M9025","MS-M9022"], name:"Container service account", tactic:"credential-access", type:"k8s",
     desc:"Reading projected ServiceAccount token from /var/run/secrets/kubernetes.io/serviceaccount/token.",
     examples:["cat /var/run/secrets/kubernetes.io/serviceaccount/token | base64 -d"],
     kql:null },
@@ -1040,7 +1040,7 @@ AzureDiagnostics
     examples:["DATABASE_URL with password in pod env","ConfigMap with API keys"],
     kql:null },
 
-  { id:"K8s-CA-004", msId:"MS-TA9028", mitreId:"T1552.005", msMits:["MS-M9018","MS-M9019","MS-M9003"], name:"Access managed identity credentials", tactic:"credential-access", type:"k8s",
+  { id:"K8s-CA-004", msId:"MS-TA9028", mitreId:"T1552.005, T1552", msMits:["MS-M9018","MS-M9019","MS-M9003"], name:"Access managed identity credentials", tactic:"credential-access", type:"k8s",
     desc:"Pod accesses Azure IMDS to obtain Managed Identity token for Azure resources.",
     examples:["curl http://169.254.169.254/metadata/identity/oauth2/token"],
     kql:`// IMDS token harvest from containers
@@ -1050,7 +1050,7 @@ CloudProcessEvents
 | where not(InitiatingProcessCommandLine has_any("azure-monitor","aad-pod-identity","azure-workload-identity"))
 | project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
 
-  { id:"K8s-CA-005", msId:"MS-TA9026", mitreId:"T1552.001", msMits:["MS-M9003","MS-M9019","MS-M9022"], name:"Mount service principal", tactic:"credential-access", type:"k8s",
+  { id:"K8s-CA-005", msId:"MS-TA9026", mitreId:"T1552.001, T1552", msMits:["MS-M9003","MS-M9019","MS-M9022"], name:"Mount service principal", tactic:"credential-access", type:"k8s",
     desc:"When the cluster is deployed in the cloud, in some cases attackers can leverage their access to a container in the cluster to gain cloud credentials. For example, in AKS each node contains service principal credentials that are stored on the host. Attackers who get access to a container can leverage the service principal credentials to access cloud resources.",
     examples:["AKS node service principal stolen","Azure SP credentials found in /etc/kubernetes/"],
     kql:`// Detect access to service principal credentials on nodes
@@ -1083,7 +1083,7 @@ CloudProcessEvents
 | project Timestamp, DeviceName, AccountName, ProcessCommandLine` },
 
   // ── DISCOVERY ─────────────────────────────────────────────────────────────
-  { id:"K8s-DI-001", msId:"MS-TA9029", mitreId:"T1613", msMits:["MS-M9002","MS-M9003","MS-M9006"], name:"Access Kubernetes API server", tactic:"discovery", type:"k8s",
+  { id:"K8s-DI-001", msId:"MS-TA9029", mitreId:"T1613", msMits:["MS-M9002","MS-M9003","MS-M9006"], name:"Access the K8S API server", tactic:"discovery", type:"k8s",
     desc:"Querying the Kubernetes API server to enumerate cluster resources.",
     examples:["kubectl get all --all-namespaces","Direct API calls to /api/v1/pods"],
     kql:`// Enumeration pattern: rapid API queries
@@ -1106,7 +1106,7 @@ AzureDiagnostics
     examples:["kubectl get serviceaccounts --all-namespaces","kubectl get rolebindings"],
     kql:null },
 
-  { id:"K8s-DI-004", msId:"MS-TA9033", mitreId:"T1552.005", msMits:["MS-M9003","MS-M9019","MS-M9018"], name:"Instance Metadata API", tactic:"discovery", type:"k8s",
+  { id:"K8s-DI-004", msId:"MS-TA9033", mitreId:"T1552.005, T1552", msMits:["MS-M9003","MS-M9019","MS-M9018"], name:"Instance Metadata API", tactic:"discovery", type:"k8s",
     desc:"Using cloud credentials to enumerate storage accounts, blobs, and managed disks.",
     examples:["az storage account list","aws s3 ls from pod"],
     kql:null },
@@ -1138,7 +1138,7 @@ AzureDiagnostics
     kql:null },
 
   // ── LATERAL MOVEMENT ──────────────────────────────────────────────────────
-  { id:"K8s-LM-001", msId:"MS-TA9011", mitreId:"T1528", msMits:["MS-M9003","MS-M9025","MS-M9010"], name:"Container service account", tactic:"lateral-movement", type:"k8s",
+  { id:"K8s-LM-001", msId:"MS-TA9016", mitreId:"T1528", msMits:["MS-M9003","MS-M9025","MS-M9010"], name:"Container service account", tactic:"lateral-movement", type:"k8s",
     desc:"Using a pod's ServiceAccount token to authenticate to the K8s API and access other namespaces or resources.",
     examples:["Token with cluster-wide read pivots across namespaces"],
     kql:null },
@@ -1153,7 +1153,7 @@ AzureDiagnostics
     examples:["Write malicious .py to shared model directory loaded by another pod"],
     kql:null },
 
-  { id:"K8s-LM-004", msId:"MS-TA9020", mitreId:"T1078.004", msMits:["MS-M9003","MS-M9019","MS-M9018"], name:"Access cloud resources", tactic:"lateral-movement", type:"k8s",
+  { id:"K8s-LM-004", msId:"MS-TA9020", mitreId:"T1078.004, T1078", msMits:["MS-M9003","MS-M9019","MS-M9018"], name:"Access cloud resources", tactic:"lateral-movement", type:"k8s",
     desc:"Using cloud credentials obtained from cluster to pivot to cloud resources.",
     examples:["IMDS token → Azure storage access → exfiltrate data"],
     kql:null },
@@ -1179,7 +1179,7 @@ CloudAuditEvents
 | where tostring(RawEventData.objectRef.namespace) == "kube-system"
 | project Timestamp, AccountDisplayName, OperationName, RawEventData` },
 
-  { id:"K8s-LM-007", msId:"MS-TA9036", mitreId:"T1557.002", msMits:["MS-M9028","MS-M9014","MS-M9011"], name:"ARP poisoning and IP spoofing", tactic:"lateral-movement", type:"k8s",
+  { id:"K8s-LM-007", msId:"MS-TA9036", mitreId:"T1557", msMits:["MS-M9028","MS-M9014","MS-M9011"], name:"ARP poisoning and IP spoofing", tactic:"lateral-movement", type:"k8s",
     desc:"The fact that cross-pod traffic is through a bridge, a level-2 component, means that performing ARP poisoning in the cluster is possible. Attackers who get access to a pod in the cluster can perform ARP poisoning and spoof the traffic of other pods, leading to attacks such as DNS spoofing or stealing cloud identities of other pods.",
     examples:["ARP cache poisoning to intercept pod traffic","Network-level man-in-the-middle between pods"],
     kql:`// Detect ARP-related anomalous network activity
@@ -1230,12 +1230,34 @@ CloudProcessEvents
     or ProcessCommandLine matches regex @"--algo\s+(rx|cn|kawpow)"
 | project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
 
-  { id:"K8s-IM-003", msId:"MS-TA9040", mitreId:"T1499", msMits:["MS-M9029","MS-M9013"], name:"Denial of service", tactic:"impact", type:"k8s",
+  { id:"K8s-IM-003", msId:"MS-TA9040", mitreId:"T1498, T1499", msMits:["MS-M9029","MS-M9013"], name:"Denial of service", tactic:"impact", type:"k8s",
     desc:"Exhausting cluster resources (CPU, memory, storage) to disrupt services.",
     examples:["Fork bomb","Resource-unlimited pod"],
     kql:null },
 
 
+
+  // ── COLLECTION ───────────────────────────────────────────────────────────────
+  { id:"K8s-CO-001", msId:"MS-TA9037", mitreId:"T1530", msMits:["MS-M9018","MS-M9003"], name:"Images from a private registry", tactic:"collection", type:"k8s",
+    desc:"The images that are running in the cluster can be stored in a private registry. If the registry is hosted by the cloud provider (e.g., Azure Container Registry, Amazon ECR), cloud credentials are used to authenticate. If attackers get access to the cluster, in some cases they can obtain access to the private registry and pull its images. For example, attackers can use the managed identity token, or the AmazonEC2ContainerRegistryReadOnly policy that is bound by default to the node's IAM role in EKS.",
+    examples:["Managed identity token used to pull from ACR","EC2 IAM role used to pull from ECR"],
+    kql:`// Detect unexpected image pulls from private registries
+CloudAuditEvents
+| where DataSource == "Kubernetes Audit"
+| where ActionType == "Create"
+| where tostring(RawEventData.objectRef.resource) == "pods"
+| where RawEventData has_any(".azurecr.io",".ecr.","gcr.io")
+| project Timestamp, AccountDisplayName, RawEventData` },
+
+  { id:"K8s-CO-002", msId:"MS-TA9041", mitreId:"", msMits:["MS-M9003","MS-M9010"], name:"Collecting data from pod", tactic:"collection", type:"k8s",
+    desc:"Using Kubernetes administrative commands an attacker can collect information from a pod without having to get direct access to that pod. One example is kubectl cp which can be used to copy files to and from pods. Another example is the Kubelet Checkpoint API which can create a stateful copy of a running container. This checkpoint contains all memory pages of all processes, meaning everything that was in memory — including private data and encryption keys — is available on the local disk.",
+    examples:["kubectl cp used to exfiltrate pod data","Kubelet checkpoint API abused to extract secrets from memory"],
+    kql:`// Detect kubectl cp (exec tar) operations
+CloudAuditEvents
+| where DataSource == "Kubernetes Audit"
+| where OperationName has "exec"
+| where RawEventData has "tar"
+| project Timestamp, AccountDisplayName, RawEventData` },
 
   { id:"AI-IM-001", name:"GPU Cryptomining via Job API", tactic:"impact", type:"ai",
     desc:"Attacker with access to Ray job API or K8s job creation submits GPU-intensive mining workloads. GPU pods (A100/H100) provide extremely high mining performance. Real-world cases observed in ComfyUI and Ray clusters.",
@@ -1506,5 +1528,36 @@ msHtml += '</tbody></table>';
 msContainer.innerHTML = msHtml;
 
 </script>
+  <!-- License footer -->
+  <div id="license-bar" style="
+    background:#0d1117;
+    border-top:1px solid #1e2d3d;
+    padding:12px 24px;
+    font-size:11px;
+    color:#4a5568;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px;
+  ">
+    <span>
+      ☸️ <strong style="color:#6b7280">K8s + AI Workload Threat Matrix</strong>
+      — Extended from
+      <a href="https://microsoft.github.io/Threat-Matrix-for-Kubernetes/" target="_blank"
+         style="color:#3b82f6;text-decoration:none;">Microsoft Threat Matrix for Kubernetes</a>
+      by Yossi Weizman, Dotan Patrich &amp; Ram Pliskin (Microsoft Defender for Cloud).
+      AI-layer extensions by Rey Avishar &amp; Diwas Sedai (Microsoft Defender for Cloud).
+    </span>
+    <span>
+      <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank"
+         style="color:#3b82f6;text-decoration:none;">
+        <img src="https://licensebuttons.net/l/by/4.0/80x15.png"
+             alt="CC BY 4.0" style="vertical-align:middle;margin-right:5px;">
+        Creative Commons Attribution 4.0 International
+      </a>
+    </span>
+  </div>
+
 </body>
 </html>
