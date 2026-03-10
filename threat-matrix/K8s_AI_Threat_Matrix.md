@@ -150,7 +150,7 @@ Microsoft Kubernetes Threat Matrix Team
 [microsoft.github.io/Threat-Matrix-for-Kubernetes](https://microsoft.github.io/Threat-Matrix-for-Kubernetes/)
 
 **AI Extensions:**  
-Diwas Sedai & Avi Sharma  
+Avi Sharma  
 Microsoft Defender for Cloud Research Team  
 March 2026
 
