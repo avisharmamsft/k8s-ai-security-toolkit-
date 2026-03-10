@@ -146,7 +146,7 @@ For each technique above:
 ## Credits
 
 **Base Matrix:**  
-Microsoft Kubernetes Threat Matrix Team  
+The threat matrix for Kubernetes is created by Yossi Weizman, Dotan Patrich and Ram Pliskin of the Microsoft Defender for Cloud team.
 [microsoft.github.io/Threat-Matrix-for-Kubernetes](https://microsoft.github.io/Threat-Matrix-for-Kubernetes/)
 
 **AI Extensions:**  
