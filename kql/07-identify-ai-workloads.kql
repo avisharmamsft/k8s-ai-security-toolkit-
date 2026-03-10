@@ -229,9 +229,9 @@ AllAIWorkloads
 //
 // Once you've identified AI workloads:
 //
-// → Run security audit scripts (see /scripts/ directory in this repo)
-// → Apply hardening checklist (see /checklists/ directory)
+// → Run security audit scripts: audit-scripts/audit-ai-workloads.sh
+// → Apply hardening checklist: checklists/hardening-priorities.md
 // → Enable hunting queries for anomaly detection (see other .kql files)
-// → Review incident response playbook (see /playbooks/ directory)
+// → IR playbook: coming soon — see checklists/hardening-priorities.md for immediate remediation
 //
 // ═══════════════════════════════════════════════════════════════════════════════
