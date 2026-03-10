@@ -17,7 +17,7 @@ This repository contains production-ready security resources for detecting and d
 ### 1. **Extended Kubernetes + AI Threat Matrix**
 - `threat-matrix/K8s_AI_Threat_Matrix.md` - Markdown version
 - `threat-matrix/threat-matrix.xlsx` - Excel version with filtering
-- `threat-matrix/index.html` - [Interactive version](https://htmlpreview.github.io/?https://github.com/avisharmamsft/k8s-ai-security-toolkit/blob/main/threat-matrix/index.html)
+- `threat-matrix/index.html` - [Interactive version](https://htmlpreview.github.io/?https://github.com/avisharmamsft/k8s-ai-security-toolkit/blob/d996d27762d046b471358d15ae125180f2a5c5a6/threat-matrix/index.html)
 - Shows base Kubernetes threat techniques (from [Microsoft's K8s Threat Matrix](https://microsoft.github.io/Threat-Matrix-for-Kubernetes/))
 - **NEW:** AI-layer extensions covering model artifacts, agentic systems, and ML-specific attack paths
 
