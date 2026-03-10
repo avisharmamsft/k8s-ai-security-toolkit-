@@ -437,9 +437,71 @@
   .modal-mit-name { font-size: 12px; font-weight: 600; color: var(--text); display: block; }
   .modal-mit-oneliner { font-size: 11px; color: var(--text-muted); margin-top: 1px; display: block; line-height: 1.4; }
 
+  /* ── Info box (K8s technique metadata) ────────────────────────── */
+  .info-box {
+    float: right;
+    background: rgba(31,111,235,0.08);
+    border: 1px solid rgba(31,111,235,0.35);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 0 0 12px 16px;
+    font-size: 12px;
+    min-width: 180px;
+  }
+
+  .info-box-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #58a6ff;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .info-box-row { margin-bottom: 4px; color: var(--text-muted); }
+  .info-box-row span { color: var(--text); }
+  .info-box-row a { color: #58a6ff; text-decoration: none; }
+  .info-box-row a:hover { text-decoration: underline; }
+
+  /* ── Tactic header clickable ───────────────────────────────────── */
+  thead tr th { cursor: pointer; }
+  thead tr th:hover .tactic-name { text-decoration: underline; }
+
+  /* ── Tactic modal (wider) ──────────────────────────────────────── */
+  .tactic-modal { max-width: 640px; }
+
+  .tactic-tech-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .tactic-tech-card {
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .tactic-tech-card.k8s { background: var(--k8s-cell); }
+  .tactic-tech-card.k8s:hover { background: var(--k8s-cell-hover); border-color: #58a6ff; }
+  .tactic-tech-card.ai { background: var(--ai-cell); border-color: rgba(212,134,10,0.4); }
+  .tactic-tech-card.ai:hover { background: var(--ai-cell-hover); border-color: var(--ai-border); }
+
+  .tactic-tech-card-name { font-size: 12px; font-weight: 500; display: block; }
+  .tactic-tech-card.k8s .tactic-tech-card-name { color: var(--text); }
+  .tactic-tech-card.ai .tactic-tech-card-name { color: var(--ai-text); }
+  .tactic-tech-card-id { font-family: monospace; font-size: 10px; color: var(--text-muted); display: block; margin-top: 2px; }
+
   @media (max-width: 900px) {
     body { padding: 12px; }
     header h1 { font-size: 20px; }
+    .tactic-tech-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -544,24 +606,38 @@ const aiMitigations = [
 // Base URL for Microsoft's mitigation pages
 const MS_BASE = "https://microsoft.github.io/Threat-Matrix-for-Kubernetes/";
 const msMitigations = {
-  "MS-M9003": { name: "Adhere to least-privilege principle",       oneliner: "Grant minimum required permissions to ServiceAccounts and workload identities.",           url: MS_BASE + "MS-M9003%20Adhere%20to%20least-privilege%20principle/" },
-  "MS-M9005": { name: "Image assurance policy",                    oneliner: "Evaluate container images for vulnerabilities and malware before deployment.",              url: MS_BASE + "MS-M9005/" },
-  "MS-M9007": { name: "Network intrusion prevention",              oneliner: "Use IDS signatures and WAF to block traffic at network boundaries.",                        url: MS_BASE + "MS-M9007%20Network%20Intrusion%20Prevention/" },
-  "MS-M9008": { name: "Limit access to services over network",     oneliner: "Restrict which services are reachable from outside the cluster.",                          url: MS_BASE + "MS-M9008%20Limit%20Access%20to%20Services%20Over%20Network/" },
-  "MS-M9009": { name: "Require strong authentication to services", oneliner: "Enforce authentication before access to cluster services.",                                url: MS_BASE + "MS-M9009%20Require%20Strong%20Authentication%20to%20Services/" },
-  "MS-M9010": { name: "Restrict exec commands on pods",            oneliner: "Limit or audit kubectl exec/attach access to running containers.",                         url: MS_BASE + "MS-M9010%20Restrict%20Exec%20Commands%20on%20Pods/" },
-  "MS-M9012": { name: "Remove tools from container images",        oneliner: "Strip curl, wget, bash, and other offensive tools from production images.",                url: MS_BASE + "MS-M9012%20Remove%20Tools%20from%20Container%20Images/" },
-  "MS-M9013": { name: "Restrict over-permissive containers",       oneliner: "Deny privileged containers and cap Linux capabilities via Pod Security Standards.",       url: MS_BASE + "MS-M9013%20Restrict%20over%20permissive%20containers/" },
-  "MS-M9014": { name: "Network segmentation",                      oneliner: "Restrict inbound/outbound pod traffic using Kubernetes NetworkPolicies.",                  url: MS_BASE + "MS-M9014%20Network%20Segmentation/" },
-  "MS-M9015": { name: "Avoid running management interface on containers", oneliner: "Do not expose admin UIs (dashboards, debug endpoints) from containers.",           url: MS_BASE + "MS-M9015%20Avoid%20Running%20Management%20Interface%20on%20Containers/" },
-  "MS-M9016": { name: "Restrict file and directory permissions",   oneliner: "Enforce read-only filesystems and tight file permissions on container mounts.",            url: MS_BASE + "MS-M9016%20Restrict%20File%20and%20Directory%20Permissions/" },
-  "MS-M9018": { name: "Restricting cloud metadata API access",     oneliner: "Block pod access to the cloud instance metadata service (IMDS) via NetworkPolicy.",       url: MS_BASE + "MS-M9018%20Restricting%20cloud%20metadata%20API%20access/" },
-  "MS-M9019": { name: "Allocate specific identities to pods",      oneliner: "Assign dedicated Workload Identities per pod rather than reusing broad identities.",      url: MS_BASE + "MS-M9019%20Allocate%20specific%20identities%20to%20pods/" },
-  "MS-M9020": { name: "Collect logs to remote data storage",       oneliner: "Forward audit and container logs to tamper-resistant remote storage.",                    url: MS_BASE + "MS-M9020%20Collect%20Logs%20to%20Remote%20Data%20Storage/" },
-  "MS-M9022": { name: "Use managed secret store",                  oneliner: "Store secrets in Azure Key Vault or a managed secret provider, not in K8s Secrets.",     url: MS_BASE + "MS-M9022%20Use%20Managed%20Secret%20Store/" },
-  "MS-M9025": { name: "Disable service account auto mount",        oneliner: "Set automountServiceAccountToken: false on pods that do not need K8s API access.",        url: MS_BASE + "MS-M9025%20Disable%20Service%20Account%20Auto%20Mount/" },
-  "MS-M9026": { name: "Avoid using plain text credentials",        oneliner: "Never store credentials in ConfigMaps, env vars, or container image layers.",             url: MS_BASE + "MS-M9026%20Avoid%20using%20plain%20text%20credentials%20in%20configuration%20files/" },
-  "MS-M9029": { name: "Set requests and limits for containers",    oneliner: "Define CPU/memory and GPU resource limits to prevent resource hijacking.",                url: MS_BASE + "MS-M9029%20Set%20requests%20and%20limits%20for%20containers/" },
+  "MS-M9001": { name: "Multi-factor authentication",                      oneliner: "Use MFA for cloud accounts that can access Kubernetes clusters.",                           url: MS_BASE + "MS-M9001%20Multi-factor%20Authentication/" },
+  "MS-M9002": { name: "Restrict API server access via IP firewall",       oneliner: "Restrict API server access to trusted IP ranges only.",                                    url: MS_BASE + "MS-M9002%20Restrict%20access%20to%20the%20API%20server%20using%20IP%20firewall/" },
+  "MS-M9003": { name: "Adhere to least-privilege principle",              oneliner: "Grant minimum required permissions to ServiceAccounts and workload identities.",            url: MS_BASE + "MS-M9003%20Adhere%20to%20least-privilege%20principle/" },
+  "MS-M9004": { name: "Secure CI/CD environment",                         oneliner: "Restrict unauthorized access and modification of code, artifacts, and build pipelines.",   url: MS_BASE + "MS-M9004%20Secure%20CI%20CD%20environment/" },
+  "MS-M9005": { name: "Image assurance policy",                           oneliner: "Evaluate container images for vulnerabilities and malware before deployment.",             url: MS_BASE + "MS-M9005/" },
+  "MS-M9006": { name: "Enable Just In Time access to API server",         oneliner: "Grant temporary, audited access to the K8s API server on demand.",                        url: MS_BASE + "MS-M9006%20Enable%20Just%20In%20Time%20access%20to%20API%20server/" },
+  "MS-M9007": { name: "Network intrusion prevention",                     oneliner: "Use IDS signatures and WAF to block traffic at network boundaries.",                       url: MS_BASE + "MS-M9007%20Network%20Intrusion%20Prevention/" },
+  "MS-M9008": { name: "Limit access to services over network",            oneliner: "Restrict which services are reachable from outside the cluster.",                         url: MS_BASE + "MS-M9008%20Limit%20Access%20to%20Services%20Over%20Network/" },
+  "MS-M9009": { name: "Require strong authentication to services",        oneliner: "Enforce authentication before access to cluster services.",                               url: MS_BASE + "MS-M9009%20Require%20Strong%20Authentication%20to%20Services/" },
+  "MS-M9010": { name: "Restrict exec commands on pods",                   oneliner: "Limit or audit kubectl exec/attach access to running containers.",                        url: MS_BASE + "MS-M9010%20Restrict%20Exec%20Commands%20on%20Pods/" },
+  "MS-M9011": { name: "Restrict container runtime using LSM",             oneliner: "Confine containers with AppArmor, SELinux, or Seccomp profiles.",                         url: MS_BASE + "MS-M9011%20Restrict%20Container%20Runtime%20using%20LSM/" },
+  "MS-M9012": { name: "Remove tools from container images",               oneliner: "Strip curl, wget, bash, and other offensive tools from production images.",               url: MS_BASE + "MS-M9012%20Remove%20Tools%20from%20Container%20Images/" },
+  "MS-M9013": { name: "Restrict over-permissive containers",              oneliner: "Deny privileged containers and cap Linux capabilities via Pod Security Standards.",      url: MS_BASE + "MS-M9013%20Restrict%20over%20permissive%20containers/" },
+  "MS-M9014": { name: "Network segmentation",                             oneliner: "Restrict inbound/outbound pod traffic using Kubernetes NetworkPolicies.",                 url: MS_BASE + "MS-M9014%20Network%20Segmentation/" },
+  "MS-M9015": { name: "Avoid running management interface on containers", oneliner: "Do not expose admin UIs (dashboards, debug endpoints) from containers.",                 url: MS_BASE + "MS-M9015%20Avoid%20Running%20Management%20Interface%20on%20Containers/" },
+  "MS-M9016": { name: "Restrict file and directory permissions",          oneliner: "Enforce read-only filesystems and tight file permissions on container mounts.",           url: MS_BASE + "MS-M9016%20Restrict%20File%20and%20Directory%20Permissions/" },
+  "MS-M9017": { name: "Ensure pods meet Pod Security Standards",          oneliner: "Apply Pod Security Admission to enforce baseline or restricted security profiles.",       url: MS_BASE + "MS-M9017%20Ensure%20that%20pods%20meet%20defined%20Pod%20Security%20Standards/" },
+  "MS-M9018": { name: "Restrict cloud metadata API access",               oneliner: "Block pod access to the cloud instance metadata service (IMDS) via NetworkPolicy.",      url: MS_BASE + "MS-M9018%20Restricting%20cloud%20metadata%20API%20access/" },
+  "MS-M9019": { name: "Allocate specific identities to pods",             oneliner: "Assign dedicated Workload Identities per pod rather than reusing broad identities.",     url: MS_BASE + "MS-M9019%20Allocate%20specific%20identities%20to%20pods/" },
+  "MS-M9020": { name: "Collect logs to remote data storage",              oneliner: "Forward audit and container logs to tamper-resistant remote storage.",                   url: MS_BASE + "MS-M9020%20Collect%20Logs%20to%20Remote%20Data%20Storage/" },
+  "MS-M9021": { name: "Restrict unauthenticated APIs in the cluster",     oneliner: "Disable anonymous access to the API server and all internal services.",                  url: MS_BASE + "MS-M9021%20Restrict%20the%20usage%20of%20unauthenticated%20APIs%20in%20the%20Cluster/" },
+  "MS-M9022": { name: "Use managed secret store",                         oneliner: "Store secrets in Azure Key Vault or a managed secret provider, not in K8s Secrets.",    url: MS_BASE + "MS-M9022%20Use%20Managed%20Secret%20Store/" },
+  "MS-M9023": { name: "Remove unused secrets from the cluster",           oneliner: "Regularly audit and delete stale or unused K8s Secret objects.",                         url: MS_BASE + "MS-M9023%20Remove%20unused%20secrets%20from%20the%20cluster/" },
+  "MS-M9024": { name: "Restrict access to etcd",                          oneliner: "Limit etcd access to the API server only; encrypt etcd at rest.",                        url: MS_BASE + "MS-M9024%20Restrict%20access%20to%20etcd/" },
+  "MS-M9025": { name: "Disable service account auto mount",               oneliner: "Set automountServiceAccountToken: false on pods that do not need K8s API access.",       url: MS_BASE + "MS-M9025%20Disable%20Service%20Account%20Auto%20Mount/" },
+  "MS-M9026": { name: "Avoid using plain text credentials",               oneliner: "Never store credentials in ConfigMaps, env vars, or container image layers.",            url: MS_BASE + "MS-M9026%20Avoid%20using%20plain%20text%20credentials%20in%20configuration%20files/" },
+  "MS-M9027": { name: "Use NodeRestriction admission controller",         oneliner: "Prevent nodes from modifying labels or objects outside their scope.",                    url: MS_BASE + "MS-M9027%20Use%20NodeRestriction%20Admission%20Controller/" },
+  "MS-M9028": { name: "Use CNIs not prone to ARP poisoning",              oneliner: "Select CNI plugins that provide ARP spoofing protection.",                               url: MS_BASE + "MS-M9028%20Use%20CNIs%20that%20are%20not%20prone%20to%20ARP%20poisoning/" },
+  "MS-M9029": { name: "Set requests and limits for containers",           oneliner: "Define CPU/memory and GPU resource limits to prevent resource hijacking.",               url: MS_BASE + "MS-M9029%20Set%20requests%20and%20limits%20for%20containers/" },
+  "MS-M9030": { name: "Use cloud storage provider",                       oneliner: "Use managed cloud storage for persistent data instead of local node storage.",           url: MS_BASE + "MS-M9030%20Use%20Cloud%20Storage%20Provider/" },
+  "MS-M9031": { name: "Implement data backup strategy",                   oneliner: "Regularly back up cluster data and test restoration procedures.",                        url: MS_BASE + "MS-M9031%20Implement%20Data%20Backup%20Strategy/" },
+  "MS-M9032": { name: "Avoid web-hosted manifest for Kubelet",            oneliner: "Do not configure Kubelet to load manifests from remote URLs.",                           url: MS_BASE + "MS-M9032%20Avoid%20using%20web-hosted%20manifest%20for%20Kubelet/" },
 };
 
 // ── Per-technique mitigation mapping ─────────────────────────────────────
@@ -590,21 +666,30 @@ const techMitigations = {
 };
 
 const tactics = [
-  { id: "initial-access",       name: "Initial Access" },
-  { id: "execution",            name: "Execution" },
-  { id: "persistence",          name: "Persistence" },
-  { id: "privilege-escalation", name: "Privilege Escalation" },
-  { id: "defense-evasion",      name: "Defense Evasion" },
-  { id: "credential-access",    name: "Credential Access" },
-  { id: "discovery",            name: "Discovery" },
-  { id: "lateral-movement",     name: "Lateral Movement" },
-  { id: "impact",               name: "Impact" },
+  { id: "initial-access",       name: "Initial Access",
+    desc: "Techniques used for gaining access to the cluster. This access can be achieved directly via the cluster management layer or by gaining access to a malicious or vulnerable resource deployed on the cluster." },
+  { id: "execution",            name: "Execution",
+    desc: "Techniques that result in adversary-controlled code running in a container or on a cluster node. These techniques are often paired with other tactics to achieve broader objectives." },
+  { id: "persistence",          name: "Persistence",
+    desc: "Techniques used by attackers to keep access to the cluster in case their initial foothold is lost. Persistence can include anything that keeps their access, tools, or capabilities available." },
+  { id: "privilege-escalation", name: "Privilege Escalation",
+    desc: "Techniques used by attackers to get higher privileges in the environment — from container to node, from namespace to cluster, or from cluster to cloud subscription." },
+  { id: "defense-evasion",      name: "Defense Evasion",
+    desc: "Techniques used by attackers to avoid detection and hide their activity in the cluster, including deleting logs, renaming processes, or blending into legitimate traffic." },
+  { id: "credential-access",    name: "Credential Access",
+    desc: "Techniques used by attackers to steal credentials. In containerized environments this includes application credentials, K8s secrets, ServiceAccount tokens, and cloud identity tokens." },
+  { id: "discovery",            name: "Discovery",
+    desc: "Techniques used by attackers to explore the cluster environment — mapping resources, services, cloud metadata, and network topology to plan further attack stages." },
+  { id: "lateral-movement",     name: "Lateral Movement",
+    desc: "Techniques used by attackers to move through the cluster — pivoting from a compromised pod to other namespaces, nodes, or cloud resources using stolen credentials or network access." },
+  { id: "impact",               name: "Impact",
+    desc: "Techniques used by attackers to disrupt availability, destroy data, steal intellectual property, or establish persistent footholds in adjacent systems such as Azure AD and M365." },
 ];
 
 // Each technique: { id, name, tactic, type: 'k8s'|'ai', desc, examples, kql }
 const techniques = [
   // ── INITIAL ACCESS ────────────────────────────────────────────────────────
-  { id:"K8s-IA-001", name:"App vulnerability", tactic:"initial-access", type:"k8s",
+  { id:"K8s-IA-001", msId:"MS-TA9004", mitreId:"T1190", msMits:["MS-M9005","MS-M9007","MS-M9009"], name:"App vulnerability", tactic:"initial-access", type:"k8s",
     desc:"Attacker exploits a vulnerability in a containerized application to gain initial access to the cluster.",
     examples:["Remote code execution via web app", "CVE in exposed service"],
     kql:`// Defender for Cloud - suspicious pod creation after alert
@@ -613,7 +698,7 @@ SecurityAlert
 | where Entities has "Pod"
 | project TimeGenerated, AlertName, CompromisedEntity, ExtendedProperties` },
 
-  { id:"K8s-IA-002", name:"Exposed dashboards", tactic:"initial-access", type:"k8s",
+  { id:"K8s-IA-002", msId:"MS-TA9005", mitreId:"T1133", msMits:["MS-M9008","MS-M9015","MS-M9021"], name:"Exposed dashboards", tactic:"initial-access", type:"k8s",
     desc:"Unauthenticated access to Kubernetes Dashboard, Weave Scope, or similar.",
     examples:["kubectl proxy exposed externally","Dashboard NodePort exposed"],
     kql:`// Detect access to dashboard services from external IPs
@@ -623,7 +708,7 @@ AzureDiagnostics
 | where sourceIPs_s !startswith "10." and sourceIPs_s !startswith "172."
 | project TimeGenerated, sourceIPs_s, log_s` },
 
-  { id:"K8s-IA-003", name:"Cloud credentials abuse", tactic:"initial-access", type:"k8s",
+  { id:"K8s-IA-003", msId:"MS-TA9001", mitreId:"T1078.004", msMits:["MS-M9001","MS-M9002","MS-M9003"], name:"Cloud credentials abuse", tactic:"initial-access", type:"k8s",
     desc:"Leaked cloud credentials used to access cluster via cloud provider APIs.",
     examples:["Stolen kubeconfig","Azure SP credentials leaked in CI/CD"],
     kql:`// Impossible travel / new location cluster auth
@@ -633,7 +718,7 @@ AuditLogs
 | summarize Locations=make_set(City) by UserPrincipalName, bin(TimeGenerated,1h)
 | where array_length(Locations) > 1` },
 
-  { id:"K8s-IA-004", name:"Backdoored container image", tactic:"initial-access", type:"k8s",
+  { id:"K8s-IA-004", msId:"MS-TA9002", mitreId:"T1525", msMits:["MS-M9004","MS-M9005","MS-M9009"], name:"Backdoored container image", tactic:"initial-access", type:"k8s",
     desc:"Malicious image pulled from public registry or compromised private registry.",
     examples:["Typosquatted image name","Poisoned base image in supply chain"],
     kql:`// Images pulled from non-approved registries
@@ -666,7 +751,7 @@ CloudAuditEvents
 | project Timestamp, AccountDisplayName, RawEventData` },
 
   // ── EXECUTION ─────────────────────────────────────────────────────────────
-  { id:"K8s-EX-001", name:"Exec into container", tactic:"execution", type:"k8s",
+  { id:"K8s-EX-001", msId:"MS-TA9007", mitreId:"T1609", msMits:["MS-M9003","MS-M9010","MS-M9011"], name:"Exec into container", tactic:"execution", type:"k8s",
     desc:"kubectl exec used to run commands inside a running container.",
     examples:["kubectl exec -it <pod> -- /bin/bash"],
     kql:`// kubectl exec audit log detection
@@ -677,12 +762,12 @@ AzureDiagnostics
 | where parsed.verb == "create" and parsed.requestURI has "/exec"
 | project TimeGenerated, User=parsed.user.username, Pod=parsed.objectRef.name, Namespace=parsed.objectRef.namespace` },
 
-  { id:"K8s-EX-002", name:"Application exploit (RCE)", tactic:"execution", type:"k8s",
+  { id:"K8s-EX-002", msId:"MS-TA9006", mitreId:"T1203", msMits:["MS-M9005","MS-M9007","MS-M9009"], name:"Application exploit (RCE)", tactic:"execution", type:"k8s",
     desc:"Exploiting vulnerable application code running inside a container.",
     examples:["Deserialization exploit","SSRF to metadata service"],
     kql:null },
 
-  { id:"K8s-EX-003", name:"Sidecar injection", tactic:"execution", type:"k8s",
+  { id:"K8s-EX-003", msId:"MS-TA9036", mitreId:"T1055", msMits:["MS-M9003","MS-M9005","MS-M9013"], name:"Sidecar injection", tactic:"execution", type:"k8s",
     desc:"Malicious sidecar container injected via mutating admission webhook.",
     examples:["Webhook injects reverse shell sidecar"],
     kql:`// Admission webhook mutations
@@ -692,7 +777,7 @@ AzureDiagnostics
 | where parsed.verb == "create" and parsed.requestURI has "mutate"
 | project TimeGenerated, User=parsed.user.username, log_s` },
 
-  { id:"K8s-EX-004", name:"New container (malicious)", tactic:"execution", type:"k8s",
+  { id:"K8s-EX-004", msId:"MS-TA9008", mitreId:"T1610", msMits:["MS-M9003","MS-M9013","MS-M9017"], name:"New container (malicious)", tactic:"execution", type:"k8s",
     desc:"Attacker creates a new privileged or backdoored container in the cluster.",
     examples:["kubectl run attacker --image=alpine --privileged"],
     kql:null },
@@ -727,12 +812,12 @@ CloudProcessEvents
 | project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine, FolderPath` },
 
   // ── PERSISTENCE ───────────────────────────────────────────────────────────
-  { id:"K8s-PE-001", name:"Backdoor container", tactic:"persistence", type:"k8s",
+  { id:"K8s-PE-001", msId:"MS-TA9012", mitreId:"T1543", msMits:["MS-M9005","MS-M9011","MS-M9013"], name:"Backdoor container", tactic:"persistence", type:"k8s",
     desc:"Attacker replaces or modifies a container image to include backdoor functionality.",
     examples:["Modified entrypoint with reverse shell","Added cron in Dockerfile"],
     kql:null },
 
-  { id:"K8s-PE-002", name:"Writeable hostPath mount", tactic:"persistence", type:"k8s",
+  { id:"K8s-PE-002", msId:"MS-TA9013", mitreId:"T1611", msMits:["MS-M9013","MS-M9016","MS-M9017"], name:"Writeable hostPath mount", tactic:"persistence", type:"k8s",
     desc:"Container with hostPath volume can write to node filesystem, enabling persistence across pod restarts.",
     examples:["Write to /etc/cron.d via hostPath","Modify node kubelet config"],
     kql:`// Pods with hostPath mounts
@@ -744,7 +829,7 @@ CloudAuditEvents
 | where RawEventData !has "ReadOnly"
 | project Timestamp, AccountDisplayName, RawEventData` },
 
-  { id:"K8s-PE-003", name:"Kubernetes CronJob", tactic:"persistence", type:"k8s",
+  { id:"K8s-PE-003", msId:"MS-TA9011", mitreId:"T1053.007", msMits:["MS-M9003","MS-M9010","MS-M9017"], name:"Kubernetes CronJob", tactic:"persistence", type:"k8s",
     desc:"Attacker creates a CronJob to periodically execute malicious workloads.",
     examples:["CronJob exfiltrating secrets every hour"],
     kql:`// New CronJob creation audit
@@ -754,7 +839,7 @@ AzureDiagnostics
 | where parsed.verb == "create" and parsed.objectRef.resource == "cronjobs"
 | project TimeGenerated, User=parsed.user.username, Name=parsed.objectRef.name, Namespace=parsed.objectRef.namespace` },
 
-  { id:"K8s-PE-004", name:"Malicious admission webhook", tactic:"persistence", type:"k8s",
+  { id:"K8s-PE-004", msId:"MS-TA9015", mitreId:"T1546", msMits:["MS-M9003","MS-M9005","MS-M9017"], name:"Malicious admission webhook", tactic:"persistence", type:"k8s",
     desc:"Attacker installs a validating/mutating webhook that intercepts all pod creations.",
     examples:["Webhook injecting env vars with C2 address"],
     kql:null },
@@ -778,12 +863,12 @@ CloudProcessEvents
 | project Timestamp, DeviceName, AccountName, FolderPath, ProcessCommandLine` },
 
   // ── PRIVILEGE ESCALATION ──────────────────────────────────────────────────
-  { id:"K8s-PRIV-001", name:"Container escape", tactic:"privilege-escalation", type:"k8s",
+  { id:"K8s-PRIV-001", msId:"MS-TA9018", mitreId:"T1610", msMits:["MS-M9013","MS-M9017","MS-M9011"], name:"Container escape", tactic:"privilege-escalation", type:"k8s",
     desc:"Breaking out of container isolation to gain node-level access.",
     examples:["runc CVE","--privileged container with /proc/sysrq-trigger"],
     kql:null },
 
-  { id:"K8s-PRIV-002", name:"Privileged container", tactic:"privilege-escalation", type:"k8s",
+  { id:"K8s-PRIV-002", msId:"MS-TA9019", mitreId:"T1078", msMits:["MS-M9003","MS-M9010","MS-M9017"], name:"Privileged container", tactic:"privilege-escalation", type:"k8s",
     desc:"Container running with securityContext.privileged=true has near-full node access.",
     examples:["GPU pods often deployed privileged — common in AI workloads"],
     kql:`// AI workloads running privileged - high risk
@@ -795,7 +880,7 @@ CloudAuditEvents
 | where RawEventData has_any("gpu","cuda","nvidia","vllm","ray","comfyui","triton","langflow","ollama")
 | project Timestamp, AccountDisplayName, RawEventData` },
 
-  { id:"K8s-PRIV-003", name:"Cluster-admin via RoleBinding", tactic:"privilege-escalation", type:"k8s",
+  { id:"K8s-PRIV-003", msId:"MS-TA9013", mitreId:"T1611", msMits:["MS-M9013","MS-M9016","MS-M9017"], name:"Cluster-admin via RoleBinding", tactic:"privilege-escalation", type:"k8s",
     desc:"Attacker creates or modifies a ClusterRoleBinding to grant cluster-admin.",
     examples:["kubectl create clusterrolebinding pwned --clusterrole=cluster-admin --serviceaccount=default:default"],
     kql:`// Suspicious ClusterRoleBinding creation
@@ -826,12 +911,12 @@ AuditLogs
 | project TimeGenerated, UserPrincipalName, AppDisplayName, IPAddress, ResultType` },
 
   // ── DEFENSE EVASION ───────────────────────────────────────────────────────
-  { id:"K8s-DE-001", name:"Clear container logs", tactic:"defense-evasion", type:"k8s",
+  { id:"K8s-DE-001", msId:"MS-TA9022", mitreId:"T1070", msMits:["MS-M9016","MS-M9020"], name:"Clear container logs", tactic:"defense-evasion", type:"k8s",
     desc:"Attacker deletes or truncates container logs to remove evidence.",
     examples:["truncate -s 0 /var/log/containers/*"],
     kql:null },
 
-  { id:"K8s-DE-002", name:"Delete K8s events", tactic:"defense-evasion", type:"k8s",
+  { id:"K8s-DE-002", msId:"MS-TA9023", mitreId:"T1070", msMits:["MS-M9020","MS-M9016"], name:"Delete K8s events", tactic:"defense-evasion", type:"k8s",
     desc:"kubectl delete events to remove operational audit trail.",
     examples:["kubectl delete events --all -n kube-system"],
     kql:`// Event deletion in audit logs
@@ -841,7 +926,7 @@ AzureDiagnostics
 | where parsed.verb == "delete" and parsed.objectRef.resource == "events"
 | project TimeGenerated, User=parsed.user.username, Namespace=parsed.objectRef.namespace` },
 
-  { id:"K8s-DE-003", name:"Pod/container rename", tactic:"defense-evasion", type:"k8s",
+  { id:"K8s-DE-003", msId:"MS-TA9024", mitreId:"T1036", msMits:["MS-M9005","MS-M9013"], name:"Pod/container rename", tactic:"defense-evasion", type:"k8s",
     desc:"Malicious workload disguises itself with legitimate-looking names.",
     examples:["Cryptominer named 'kube-proxy'","Process named systemd-udev"],
     kql:null },
@@ -868,7 +953,7 @@ CloudProcessEvents
 | where Count > 20` },
 
   // ── CREDENTIAL ACCESS ─────────────────────────────────────────────────────
-  { id:"K8s-CA-001", name:"List K8s secrets", tactic:"credential-access", type:"k8s",
+  { id:"K8s-CA-001", msId:"MS-TA9027", mitreId:"T1552.007", msMits:["MS-M9003","MS-M9022","MS-M9023","MS-M9025"], name:"List K8s secrets", tactic:"credential-access", type:"k8s",
     desc:"kubectl get secrets / API call to list secret resources.",
     examples:["ServiceAccount with over-broad RBAC can list all secrets"],
     kql:`// Secret access audit
@@ -879,17 +964,17 @@ AzureDiagnostics
 | where parsed.user.username !startswith "system:"
 | project TimeGenerated, User=parsed.user.username, Namespace=parsed.objectRef.namespace, Verb=parsed.verb` },
 
-  { id:"K8s-CA-002", name:"K8s ServiceAccount token", tactic:"credential-access", type:"k8s",
+  { id:"K8s-CA-002", msId:"MS-TA9028", mitreId:"T1528", msMits:["MS-M9003","MS-M9025","MS-M9022"], name:"K8s ServiceAccount token", tactic:"credential-access", type:"k8s",
     desc:"Reading projected ServiceAccount token from /var/run/secrets/kubernetes.io/serviceaccount/token.",
     examples:["cat /var/run/secrets/kubernetes.io/serviceaccount/token | base64 -d"],
     kql:null },
 
-  { id:"K8s-CA-003", name:"Application creds in config files", tactic:"credential-access", type:"k8s",
+  { id:"K8s-CA-003", msId:"MS-TA9031", mitreId:"T1552", msMits:["MS-M9022","MS-M9026","MS-M9023"], name:"Application creds in config files", tactic:"credential-access", type:"k8s",
     desc:"Secrets hardcoded in ConfigMaps, environment variables, or mounted files.",
     examples:["DATABASE_URL with password in pod env","ConfigMap with API keys"],
     kql:null },
 
-  { id:"K8s-CA-004", name:"Managed Identity", tactic:"credential-access", type:"k8s",
+  { id:"K8s-CA-004", msId:"MS-TA9032", mitreId:"T1552.005", msMits:["MS-M9018","MS-M9019","MS-M9003"], name:"Managed Identity", tactic:"credential-access", type:"k8s",
     desc:"Pod accesses Azure IMDS to obtain Managed Identity token for Azure resources.",
     examples:["curl http://169.254.169.254/metadata/identity/oauth2/token"],
     kql:`// IMDS token harvest from containers
@@ -923,7 +1008,7 @@ CloudProcessEvents
 | project Timestamp, DeviceName, AccountName, ProcessCommandLine` },
 
   // ── DISCOVERY ─────────────────────────────────────────────────────────────
-  { id:"K8s-DI-001", name:"Access K8s API", tactic:"discovery", type:"k8s",
+  { id:"K8s-DI-001", msId:"MS-TA9033", mitreId:"T1613", msMits:["MS-M9002","MS-M9003","MS-M9006"], name:"Access K8s API", tactic:"discovery", type:"k8s",
     desc:"Querying the Kubernetes API server to enumerate cluster resources.",
     examples:["kubectl get all --all-namespaces","Direct API calls to /api/v1/pods"],
     kql:`// Enumeration pattern: rapid API queries
@@ -936,17 +1021,17 @@ AzureDiagnostics
   by User=tostring(parsed.user.username), bin(TimeGenerated,2m)
 | where QueryCount > 30` },
 
-  { id:"K8s-DI-002", name:"Network mapping", tactic:"discovery", type:"k8s",
+  { id:"K8s-DI-002", msId:"MS-TA9035", mitreId:"T1046", msMits:["MS-M9007","MS-M9014"], name:"Network mapping", tactic:"discovery", type:"k8s",
     desc:"Internal cluster network scanning to discover services and pods.",
     examples:["nmap from compromised pod","curl scanning /etc/resolv.conf domains"],
     kql:null },
 
-  { id:"K8s-DI-003", name:"Account discovery", tactic:"discovery", type:"k8s",
+  { id:"K8s-DI-003", msId:"MS-TA9034", mitreId:"T1087", msMits:["MS-M9003","MS-M9010"], name:"Account discovery", tactic:"discovery", type:"k8s",
     desc:"Enumerating ServiceAccounts, users, and RBAC bindings.",
     examples:["kubectl get serviceaccounts --all-namespaces","kubectl get rolebindings"],
     kql:null },
 
-  { id:"K8s-DI-004", name:"Cloud storage discovery", tactic:"discovery", type:"k8s",
+  { id:"K8s-DI-004", msId:"MS-TA9020", mitreId:"T1526", msMits:["MS-M9003","MS-M9019","MS-M9018"], name:"Cloud storage discovery", tactic:"discovery", type:"k8s",
     desc:"Using cloud credentials to enumerate storage accounts, blobs, and managed disks.",
     examples:["az storage account list","aws s3 ls from pod"],
     kql:null },
@@ -969,22 +1054,22 @@ AzureDiagnostics
     kql:null },
 
   // ── LATERAL MOVEMENT ──────────────────────────────────────────────────────
-  { id:"K8s-LM-001", name:"Container service account", tactic:"lateral-movement", type:"k8s",
+  { id:"K8s-LM-001", msId:"MS-TA9028", mitreId:"T1528", msMits:["MS-M9003","MS-M9025","MS-M9010"], name:"Container service account", tactic:"lateral-movement", type:"k8s",
     desc:"Using a pod's ServiceAccount token to authenticate to the K8s API and access other namespaces or resources.",
     examples:["Token with cluster-wide read pivots across namespaces"],
     kql:null },
 
-  { id:"K8s-LM-002", name:"Cluster internal networking", tactic:"lateral-movement", type:"k8s",
+  { id:"K8s-LM-002", msId:"MS-TA9037", mitreId:"T1599", msMits:["MS-M9014","MS-M9007","MS-M9008"], name:"Cluster internal networking", tactic:"lateral-movement", type:"k8s",
     desc:"Abusing flat cluster network to reach services in other namespaces without network policies.",
     examples:["Direct pod-to-pod communication bypassing service mesh"],
     kql:null },
 
-  { id:"K8s-LM-003", name:"Writable volume", tactic:"lateral-movement", type:"k8s",
+  { id:"K8s-LM-003", msId:"MS-TA9013", mitreId:"T1611", msMits:["MS-M9016","MS-M9013"], name:"Writable volume", tactic:"lateral-movement", type:"k8s",
     desc:"Writing to shared volumes (PVCs, NFS) to deliver payloads to other pods or nodes.",
     examples:["Write malicious .py to shared model directory loaded by another pod"],
     kql:null },
 
-  { id:"K8s-LM-004", name:"Cloud resource access", tactic:"lateral-movement", type:"k8s",
+  { id:"K8s-LM-004", msId:"MS-TA9020", mitreId:"T1526", msMits:["MS-M9003","MS-M9019","MS-M9018"], name:"Cloud resource access", tactic:"lateral-movement", type:"k8s",
     desc:"Using cloud credentials obtained from cluster to pivot to cloud resources.",
     examples:["IMDS token → Azure storage access → exfiltrate data"],
     kql:null },
@@ -1017,12 +1102,12 @@ CloudProcessEvents
 | project Timestamp, DeviceName, AccountName, ProcessCommandLine, ProcessCommandLine1` },
 
   // ── IMPACT ────────────────────────────────────────────────────────────────
-  { id:"K8s-IM-001", name:"Data destruction", tactic:"impact", type:"k8s",
+  { id:"K8s-IM-001", msId:"MS-TA9042", mitreId:"T1485", msMits:["MS-M9030","MS-M9031","MS-M9016"], name:"Data destruction", tactic:"impact", type:"k8s",
     desc:"Deleting persistent volumes, databases, or critical cluster resources.",
     examples:["kubectl delete pvc --all","rm -rf on mounted storage"],
     kql:null },
 
-  { id:"K8s-IM-002", name:"Resource hijacking (cryptomining)", tactic:"impact", type:"k8s",
+  { id:"K8s-IM-002", msId:"MS-TA9043", mitreId:"T1496", msMits:["MS-M9003","MS-M9013","MS-M9029"], name:"Resource hijacking (cryptomining)", tactic:"impact", type:"k8s",
     desc:"Deploying cryptocurrency miners to consume cluster GPU/CPU resources.",
     examples:["xmrig named 'kube-dns'","GPU miner in compromised ComfyUI pod"],
     kql:`// Cryptominer process patterns in K8s pods
@@ -1031,12 +1116,12 @@ CloudProcessEvents
     or ProcessCommandLine matches regex @"--algo\s+(rx|cn|kawpow)"
 | project Timestamp, DeviceName, AccountName, ProcessCommandLine, InitiatingProcessCommandLine` },
 
-  { id:"K8s-IM-003", name:"Denial of service", tactic:"impact", type:"k8s",
+  { id:"K8s-IM-003", msId:"MS-TA9044", mitreId:"T1499", msMits:["MS-M9029","MS-M9013"], name:"Denial of service", tactic:"impact", type:"k8s",
     desc:"Exhausting cluster resources (CPU, memory, storage) to disrupt services.",
     examples:["Fork bomb","Resource-unlimited pod"],
     kql:null },
 
-  { id:"K8s-IM-004", name:"Data exfiltration", tactic:"impact", type:"k8s",
+  { id:"K8s-IM-004", msId:"MS-TA9041", mitreId:"T1020", msMits:["MS-M9014","MS-M9007","MS-M9016"], name:"Data exfiltration", tactic:"impact", type:"k8s",
     desc:"Copying sensitive data out of the cluster to attacker-controlled infrastructure.",
     examples:["curl POST to external endpoint with K8s secrets"],
     kql:null },
@@ -1087,13 +1172,14 @@ techniques.forEach(tech => { tacticMap[tech.tactic].push(tech); });
 // Count per tactic
 const maxRows = Math.max(...tactics.map(t => tacticMap[t.id].length));
 
-// Render headers
+// Render headers — clickable, opens tactic modal
 const headerRow = document.getElementById("tactic-headers");
 tactics.forEach(t => {
   const th = document.createElement("th");
   const k8sCount = tacticMap[t.id].filter(x => x.type === 'k8s').length;
   const aiCount  = tacticMap[t.id].filter(x => x.type === 'ai').length;
   th.innerHTML = `<span class="tactic-name">${t.name}</span><span class="tactic-count">${k8sCount} K8s · ${aiCount} AI</span>`;
+  th.onclick = () => openTacticModal(t);
   headerRow.appendChild(th);
 });
 
@@ -1120,52 +1206,104 @@ for (let r = 0; r < maxRows; r++) {
 
 function openModal(tech) {
   document.getElementById("modal-title").textContent = tech.name;
+  document.getElementById("modal").className = "modal";
+
   const tag = tech.type === 'ai'
     ? '<span class="modal-tag ai">🤖 AI-Layer Extension</span>'
     : '<span class="modal-tag k8s">☸️ K8s Technique</span>';
-  let html = tag;
+  let html = '';
+
+  // Info box for K8s techniques (msId, mitreId, tactic)
+  if (tech.msId) {
+    const tacticName = tactics.find(t => t.id === tech.tactic)?.name || '';
+    const mitreUrl = tech.mitreId ? `https://attack.mitre.org/techniques/${tech.mitreId.replace('.','/')}` : null;
+    const msUrl = `https://microsoft.github.io/Threat-Matrix-for-Kubernetes/techniques/`;
+    html += `<div class="info-box">
+      <div class="info-box-title">ℹ️ Info</div>
+      <div class="info-box-row">ID: <span>${tech.msId}</span></div>
+      <div class="info-box-row">Tactic: <span><a href="https://microsoft.github.io/Threat-Matrix-for-Kubernetes/tactics/${tech.tactic}/" target="_blank" rel="noopener">${tacticName}</a></span></div>
+      ${mitreUrl ? `<div class="info-box-row">MITRE technique: <span><a href="${mitreUrl}" target="_blank" rel="noopener">${tech.mitreId}</a></span></div>` : ''}
+    </div>`;
+  }
+
+  html += tag;
   html += `<div class="modal-section"><h4>Description</h4><p>${tech.desc}</p></div>`;
+
   if (tech.examples?.length) {
     html += `<div class="modal-section"><h4>Examples</h4><ul>${tech.examples.map(e=>`<li>${e}</li>`).join('')}</ul></div>`;
   }
 
-  // Mitigations section — only for AI techniques that have mappings
-  const mits = techMitigations[tech.id];
-  if (mits) {
+  // Mitigations — AI techniques: AI-M + MS-M from techMitigations
+  //             — K8s techniques: MS-M from tech.msMits
+  const aiMits = techMitigations[tech.id];
+  const k8sMits = tech.msMits;
+
+  if (aiMits || k8sMits?.length) {
     html += `<div class="modal-section"><h4>Mitigations</h4><div class="modal-mit-list">`;
 
-    // AI-M entries — link to mitigations tab anchor
-    mits.aiMits.forEach(id => {
-      const m = aiMitigations.find(x => x.id === id);
-      if (!m) return;
-      html += `<a class="modal-mit-row ai-row" href="#" onclick="switchTab('mitigations');closeModal();return false;">
-        <span class="modal-mit-badge ai">${m.id}</span>
-        <span class="modal-mit-text">
-          <span class="modal-mit-name">${m.name}</span>
-          <span class="modal-mit-oneliner">${m.oneliner}</span>
-        </span>
-      </a>`;
-    });
-
-    // MS-M entries — link to Microsoft's docs
-    mits.msMits.forEach(id => {
-      const m = msMitigations[id];
-      if (!m) return;
-      html += `<a class="modal-mit-row" href="${m.url}" target="_blank" rel="noopener">
-        <span class="modal-mit-badge ms">${id}</span>
-        <span class="modal-mit-text">
-          <span class="modal-mit-name">${m.name}</span>
-          <span class="modal-mit-oneliner">${m.oneliner}</span>
-        </span>
-      </a>`;
-    });
-
+    if (aiMits) {
+      // AI-M entries
+      aiMits.aiMits.forEach(id => {
+        const m = aiMitigations.find(x => x.id === id);
+        if (!m) return;
+        html += `<a class="modal-mit-row ai-row" href="#" onclick="switchTab('mitigations');closeModal();return false;">
+          <span class="modal-mit-badge ai">${m.id}</span>
+          <span class="modal-mit-text">
+            <span class="modal-mit-name">${m.name}</span>
+            <span class="modal-mit-oneliner">${m.oneliner}</span>
+          </span>
+        </a>`;
+      });
+      // MS-M entries for AI techniques
+      aiMits.msMits.forEach(id => {
+        const m = msMitigations[id];
+        if (!m) return;
+        html += `<a class="modal-mit-row" href="${m.url}" target="_blank" rel="noopener">
+          <span class="modal-mit-badge ms">${id}</span>
+          <span class="modal-mit-text">
+            <span class="modal-mit-name">${m.name}</span>
+            <span class="modal-mit-oneliner">${m.oneliner}</span>
+          </span>
+        </a>`;
+      });
+    } else if (k8sMits?.length) {
+      // MS-M entries for K8s techniques
+      k8sMits.forEach(id => {
+        const m = msMitigations[id];
+        if (!m) return;
+        html += `<a class="modal-mit-row" href="${m.url}" target="_blank" rel="noopener">
+          <span class="modal-mit-badge ms">${id}</span>
+          <span class="modal-mit-text">
+            <span class="modal-mit-name">${m.name}</span>
+            <span class="modal-mit-oneliner">${m.oneliner}</span>
+          </span>
+        </a>`;
+      });
+    }
     html += `</div></div>`;
   }
 
   if (tech.kql) {
     html += `<div class="modal-section"><h4>KQL Hunt Query</h4><div class="kql-block">${tech.kql.trim()}</div></div>`;
   }
+
+  document.getElementById("modal-content").innerHTML = html;
+  document.getElementById("modal-overlay").classList.add("active");
+}
+
+function openTacticModal(tactic) {
+  document.getElementById("modal-title").textContent = tactic.name;
+  document.getElementById("modal").className = "modal tactic-modal";
+  const techs = tacticMap[tactic.id] || [];
+  let html = `<div class="modal-section" style="margin-top:0"><p style="color:var(--text-muted);line-height:1.6;font-size:13px">${tactic.desc}</p></div>`;
+  html += `<div class="modal-section"><h4>Techniques (${techs.length})</h4><div class="tactic-tech-grid">`;
+  techs.forEach(t => {
+    html += `<div class="tactic-tech-card ${t.type}" onclick="openModal(techniques.find(x=>x.id==='${t.id}'))">
+      <span class="tactic-tech-card-name">${t.name}</span>
+      <span class="tactic-tech-card-id">${t.msId || t.id}</span>
+    </div>`;
+  });
+  html += `</div></div>`;
   document.getElementById("modal-content").innerHTML = html;
   document.getElementById("modal-overlay").classList.add("active");
 }
