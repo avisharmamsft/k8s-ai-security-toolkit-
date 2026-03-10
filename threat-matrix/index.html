@@ -363,8 +363,8 @@ ContainerLog
 | project TimeGenerated, ContainerID, LogEntry` },
 
   { id:"AI-IA-001", name:"AI Framework Remote Code Execution", tactic:"initial-access", type:"ai",
-    desc:"Critical unauthenticated RCE in Langflow AI framework (CVSS 9.8). Attacker sends crafted payload to /api/v1/validate/code endpoint to execute arbitrary Python.",
-    examples:["POST /api/v1/validate/code with __import__('os').system(...)","Exposed Langflow NodePort/LoadBalancer in AKS"],
+    desc:"Critical unauthenticated RCE in Langflow AI framework (CVE-2025-3248, CVSS 9.8). Unauthenticated attacker can execute arbitrary Python on the server via the code validation endpoint.",
+    examples:["Exposed Langflow instance with no authentication","Unauthenticated code execution via validation endpoint","Langflow NodePort/LoadBalancer exposed in AKS without network policy"],
     kql:`// Detect Langflow pods with external exposure
 CloudProcessEvents
 | where InitiatingProcessCommandLine has "langflow"
@@ -374,8 +374,8 @@ CloudProcessEvents
 // SecurityAlert | where AlertName has "Langflow"` },
 
   { id:"AI-IA-002", name:"Unauthenticated AI Inference Endpoint Exposure", tactic:"initial-access", type:"ai",
-    desc:"Ray Dashboard (port 8265) and vLLM OpenAI-compatible endpoints served without authentication, providing RCE via job submission API.",
-    examples:["Ray job API POST /api/jobs/","vLLM /v1/completions accessible from internet"],
+    desc:"AI inference framework dashboards and APIs (Ray, vLLM, Ollama) served without authentication by default. Unauthenticated access enables arbitrary job submission and remote code execution.",
+    examples:["Ray Dashboard exposed without authentication — arbitrary job submission","vLLM inference API accessible from internet without auth","Ollama API endpoint reachable from outside cluster"],
     kql:`// Detect Ray/vLLM pods without auth - check service exposure
 CloudAuditEvents
 | where DataSource == "Kubernetes Audit"
@@ -577,8 +577,8 @@ CloudProcessEvents
 | project Timestamp, DeviceName, AccountName, ProcessCommandLine` },
 
   { id:"AI-DE-002", name:"AI Inference Traffic Obfuscation", tactic:"defense-evasion", type:"ai",
-    desc:"C2 communication blends into legitimate LLM API traffic (HTTP POST to port 443, JSON body, similar timing patterns). Traditional beaconing detection rules tuned for binary protocols miss this.",
-    examples:["C2 over /v1/completions endpoint format","Exfiltration via OpenAI-compatible API mimicry"],
+    desc:"C2 communication structured to mimic legitimate LLM API traffic patterns. Traditional network detection rules tuned for binary protocols miss JSON-based beaconing over standard HTTPS.",
+    examples:["C2 traffic mimicking OpenAI-compatible API response format","Data exfiltration disguised as LLM inference requests","Beaconing intervals matching typical LLM response latency"],
     kql:`// High-frequency small POST requests from inference pods
 CloudProcessEvents
 | where ProcessCommandLine has_any("curl","requests","httpx","aiohttp")
@@ -725,7 +725,7 @@ CloudAuditEvents
 
   { id:"AI-LM-002", name:"IMDS-Based Cloud Identity Pivot", tactic:"lateral-movement", type:"ai",
     desc:"AI inference pod harvests IMDS token, exchanges for Azure AD access token, then accesses other Azure services (Key Vault, Storage, Azure OpenAI) beyond the intended pod scope.",
-    examples:["AKS pod → IMDS → Managed Identity → Key Vault secrets","86-second timeline: pip install → IMDS harvest → Azure storage access"],
+    examples:["AKS pod → IMDS → Managed Identity → Key Vault secrets","Compromised inference pod pivots from IMDS token to Azure Storage and Key Vault access"],
     kql:`// IMDS access followed by Azure resource API calls
 CloudProcessEvents
 | where ProcessCommandLine has "169.254.169.254"
