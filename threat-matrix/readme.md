@@ -1,1 +1,1 @@
-Access interactive threat matrix here - https://htmlpreview.github.io/?https://github.com/avisharmamsft/k8s-ai-security-toolkit/blob/4ceca03c064b5d69fd46671335073811b1f4ec8a/threat-matrix/index.html
+Access interactive threat matrix here - [https://htmlpreview.github.io/?https://github.com/avisharmamsft/k8s-ai-security-toolkit/blob/4ceca03c064b5d69fd46671335073811b1f4ec8a/threat-matrix/index.html](https://htmlpreview.github.io/?https://github.com/avisharmamsft/k8s-ai-security-toolkit/blob/d996d27762d046b471358d15ae125180f2a5c5a6/threat-matrix/index.html)
