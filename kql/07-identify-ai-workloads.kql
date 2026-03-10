@@ -2,26 +2,45 @@
 // HOW TO IDENTIFY AI WORKLOADS IN YOUR KUBERNETES CLUSTERS
 // ═══════════════════════════════════════════════════════════════════════════════
 //
-// This query helps you discover and inventory AI/ML workloads across your K8s clusters
-// by analyzing process telemetry, package usage, and resource patterns.
+// This query helps you discover and inventory AI/ML workloads across your K8s
+// clusters by analyzing process telemetry, package usage, and resource patterns.
 //
 // WHY THIS MATTERS:
-// Before you can secure AI workloads, you need to know where they are. Many organizations
-// have "shadow AI" — workloads using ML frameworks that security teams don't know about.
+// Before you can secure AI workloads, you need to know where they are. Many
+// organizations have "shadow AI" — workloads using ML frameworks that security
+// teams don't know about.
 //
-// SCHEMA: Azure Log Analytics with Defender for Containers
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │  WHERE TO RUN                                                           │
+// │                                                                         │
+// │  Methods 1, 3, 4 (CloudProcessEvents):                                 │
+// │    → Microsoft Defender XDR > Advanced Hunting                         │
+// │                                                                         │
+// │  Method 2 + Image Enrichment (CloudAuditEvents):                       │
+// │    → Microsoft Defender XDR > Advanced Hunting                         │
+// │                                                                         │
+// │  Full unified query:                                                    │
+// │    → Microsoft Defender XDR > Advanced Hunting                         │
+// │      (both tables available natively — no Sentinel required)           │
+// └─────────────────────────────────────────────────────────────────────────┘
+//
+// SCHEMA: Microsoft Defender XDR Advanced Hunting (CloudProcessEvents + CloudAuditEvents)
+// TIME WINDOW: Last 7 days (adjust as needed)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let lookback = 7d;  // Analyze past week of activity
 
 // ────────────────────────────────────────────────────────────────────────────
 // METHOD 1: Detect AI Frameworks via Process Command Lines
+// Run in: Defender XDR Advanced Hunting
+// Note: CloudProcessEvents is scoped to K8s (AKS/EKS/GKE) by definition.
+//       KubernetesNamespace and KubernetesPodName are native top-level columns.
 // ────────────────────────────────────────────────────────────────────────────
 let AIProcessSignatures = 
-    K8S_ProcessEvents
-    | where TimeCreatedUtc > ago(lookback)
-    | where pname has_any ("python", "python3", "uvicorn", "gunicorn", "flask", "fastapi")
-    | where cmdline has_any (
+    CloudProcessEvents
+    | where Timestamp > ago(lookback)
+    | where FileName has_any ("python", "python3", "uvicorn", "gunicorn", "flask", "fastapi")
+    | where ProcessCommandLine has_any (
         // ML Frameworks
         "torch", "pytorch", "tensorflow", "keras", "transformers", "sklearn",
         // LLM / Agent Frameworks
@@ -32,74 +51,86 @@ let AIProcessSignatures =
         "faiss", "chromadb", "pinecone", "weaviate", "sentence-transformers"
     )
     | extend Framework = case(
-        cmdline has "torch" or cmdline has "pytorch", "PyTorch",
-        cmdline has "tensorflow", "TensorFlow",
-        cmdline has "transformers", "HuggingFace Transformers",
-        cmdline has "langchain", "LangChain",
-        cmdline has "openai", "OpenAI API",
-        cmdline has "ray", "Ray",
-        cmdline has "vllm", "vLLM",
+        ProcessCommandLine has "torch" or ProcessCommandLine has "pytorch", "PyTorch",
+        ProcessCommandLine has "tensorflow", "TensorFlow",
+        ProcessCommandLine has "transformers", "HuggingFace Transformers",
+        ProcessCommandLine has "langchain", "LangChain",
+        ProcessCommandLine has "openai", "OpenAI API",
+        ProcessCommandLine has "ray", "Ray",
+        ProcessCommandLine has "vllm", "vLLM",
         "Other AI Framework"
     )
     | summarize 
-        FirstSeen=min(TimeCreatedUtc),
-        LastSeen=max(TimeCreatedUtc),
+        FirstSeen=min(Timestamp),
+        LastSeen=max(Timestamp),
         ExecutionCount=count(),
-        SampleCommands=make_set(cmdline, 3)
-        by Namespace, PodName, Framework
-    | extend DetectionMethod = "Process Command Line";
+        SampleCommands=make_set(ProcessCommandLine, 3)
+        by KubernetesNamespace, KubernetesPodName, Framework
+    | extend DetectionMethod = "Process Command Line"
+    | project-rename Namespace=KubernetesNamespace, PodName=KubernetesPodName;
 
 // ────────────────────────────────────────────────────────────────────────────
 // METHOD 2: Detect GPU-Enabled Pods (Strong AI Indicator)
+// Run in: Defender XDR Advanced Hunting
 // ────────────────────────────────────────────────────────────────────────────
 let GPUPods = 
-    AzureDiagnostics
-    | where TimeGenerated > ago(lookback)
-    | where Category == "kube-audit"
-    | where log_s has "nvidia" or log_s has "gpu"
-    | extend Namespace = tostring(parse_json(log_s).objectRef.namespace)
-    | extend PodName = tostring(parse_json(log_s).objectRef.name)
+    CloudAuditEvents
+    | where Timestamp > ago(lookback)
+    | where DataSource == "Kubernetes Audit"                       // scope to K8s audit events only
+    | where ActionType == "Create"                                 // case-sensitive
+    | where tostring(RawEventData.objectRef.resource) == "pods"
+    | where tostring(RawEventData.requestObject) has_any ("nvidia", "gpu")
+    | extend Namespace = tostring(RawEventData.objectRef.namespace)
+    | extend PodName   = tostring(RawEventData.objectRef.name)
     | where isnotempty(Namespace) and isnotempty(PodName)
-    | summarize FirstSeen=min(TimeGenerated) by Namespace, PodName
-    | extend Framework = "GPU-Enabled (likely AI/ML)"
-    | extend DetectionMethod = "GPU Resource Request";
+    | summarize FirstSeen=min(Timestamp) by Namespace, PodName
+    | extend LastSeen         = FirstSeen                          // pad for union consistency
+    | extend SampleCommands   = dynamic([])                        // pad for union consistency
+    | extend Framework        = "GPU-Enabled (likely AI/ML)"
+    | extend DetectionMethod  = "GPU Resource Request";
 
 // ────────────────────────────────────────────────────────────────────────────
 // METHOD 3: Detect Model File Access (.pt, .bin, .safetensors, .onnx)
+// Run in: Defender XDR Advanced Hunting
 // ────────────────────────────────────────────────────────────────────────────
 let ModelFileAccess = 
-    K8S_ProcessEvents
-    | where TimeCreatedUtc > ago(lookback)
-    | where cmdline has_any (".pt", ".pth", ".bin", ".safetensors", ".onnx", ".h5", ".pb")
+    CloudProcessEvents
+    | where Timestamp > ago(lookback)
+    | where ProcessCommandLine has_any (".pt", ".pth", ".bin", ".safetensors", ".onnx", ".h5", ".pb")
     | extend Framework = case(
-        cmdline has ".pt" or cmdline has ".pth", "PyTorch Model",
-        cmdline has ".safetensors", "Safetensors Model",
-        cmdline has ".onnx", "ONNX Model",
-        cmdline has ".h5" or cmdline has ".pb", "TensorFlow Model",
+        ProcessCommandLine has ".pt" or ProcessCommandLine has ".pth", "PyTorch Model",
+        ProcessCommandLine has ".safetensors", "Safetensors Model",
+        ProcessCommandLine has ".onnx", "ONNX Model",
+        ProcessCommandLine has ".h5" or ProcessCommandLine has ".pb", "TensorFlow Model",
         "Model File"
     )
     | summarize 
-        FirstSeen=min(TimeCreatedUtc),
-        LastSeen=max(TimeCreatedUtc),
-        ModelFiles=make_set(extract(@"([a-zA-Z0-9_\-]+\.(pt|pth|bin|safetensors|onnx|h5|pb))", 1, cmdline), 5)
-        by Namespace, PodName, Framework
-    | extend DetectionMethod = "Model File Access";
+        FirstSeen=min(Timestamp),
+        LastSeen=max(Timestamp),
+        SampleCommands=make_set(ProcessCommandLine, 3)
+        by KubernetesNamespace, KubernetesPodName, Framework
+    | extend DetectionMethod = "Model File Access"
+    | project-rename Namespace=KubernetesNamespace, PodName=KubernetesPodName;
 
 // ────────────────────────────────────────────────────────────────────────────
 // METHOD 4: Detect Common AI Package Installation (pip, conda)
+// Run in: Defender XDR Advanced Hunting
 // ────────────────────────────────────────────────────────────────────────────
 let PackageInstalls = 
-    K8S_ProcessEvents
-    | where TimeCreatedUtc > ago(lookback)
-    | where cmdline has "pip install" or cmdline has "conda install"
-    | where cmdline has_any ("torch", "tensorflow", "transformers", "langchain", "openai")
-    | extend Framework = extract(@"(torch|tensorflow|transformers|langchain|openai)", 1, cmdline)
+    CloudProcessEvents
+    | where Timestamp > ago(lookback)
+    | where ProcessCommandLine has "pip install" or ProcessCommandLine has "conda install"
+    | where ProcessCommandLine has_any ("torch", "tensorflow", "transformers", "langchain", "openai")
+    | extend PackageMatch = extract(@"(torch|tensorflow|transformers|langchain|openai)", 1, ProcessCommandLine)
     | summarize 
-        FirstSeen=min(TimeCreatedUtc),
-        Packages=make_set(Framework, 10)
-        by Namespace, PodName
-    | extend Framework = strcat("pip/conda: ", strcat_array(Packages, ", "))
-    | extend DetectionMethod = "Package Installation";
+        FirstSeen=min(Timestamp),
+        LastSeen=max(Timestamp),
+        Packages=make_set(PackageMatch, 10),
+        SampleCommands=make_set(ProcessCommandLine, 3)
+        by KubernetesNamespace, KubernetesPodName
+    | extend Framework       = strcat("pip/conda: ", strcat_array(Packages, ", "))
+    | extend DetectionMethod = "Package Installation"
+    | project-rename Namespace=KubernetesNamespace, PodName=KubernetesPodName;
 
 // ────────────────────────────────────────────────────────────────────────────
 // STEP 5: Combine All Detection Methods
@@ -111,7 +142,7 @@ let AllAIWorkloads =
     | union PackageInstalls
     | summarize 
         FirstDetected=min(FirstSeen),
-        LastActivity=max(iff(isnotnull(LastSeen), LastSeen, FirstSeen)),
+        LastActivity=max(coalesce(LastSeen, FirstSeen)),
         Frameworks=make_set(Framework),
         DetectionMethods=make_set(DetectionMethod),
         SampleCommands=any(SampleCommands)
@@ -122,18 +153,21 @@ let AllAIWorkloads =
 // ────────────────────────────────────────────────────────────────────────────
 AllAIWorkloads
 | join kind=leftouter (
-    // Enrich with container image info
-    AzureDiagnostics
-    | where TimeGenerated > ago(lookback)
-    | where Category == "kube-audit"
-    | where log_s has "ImagePull"
-    | extend Namespace = tostring(parse_json(log_s).objectRef.namespace)
-    | extend PodName = tostring(parse_json(log_s).objectRef.name)
-    | extend Image = tostring(parse_json(log_s).requestObject.spec.containers[0].image)
-    | summarize Image=any(Image) by Namespace, PodName
+    // Enrich with container image info from pod creation events
+    CloudAuditEvents
+    | where Timestamp > ago(lookback)
+    | where DataSource == "Kubernetes Audit"
+    | where ActionType == "Create"
+    | where tostring(RawEventData.objectRef.resource) == "pods"
+    | extend Namespace  = tostring(RawEventData.objectRef.namespace)
+    | extend PodName    = tostring(RawEventData.objectRef.name)
+    // Capture all container images, not just index [0]
+    | extend AllImages  = tostring(RawEventData.requestObject.spec.containers)
+    | extend InitImages = tostring(RawEventData.requestObject.spec.initContainers)
+    | summarize Image=any(AllImages), InitImage=any(InitImages) by Namespace, PodName
 ) on Namespace, PodName
 | extend RiskScore = case(
-    // High risk: GPU + privileged + external model loading
+    // High risk: GPU + multiple frameworks
     array_length(Frameworks) >= 3 and DetectionMethods has "GPU Resource Request", 8,
     // Medium-high risk: Multiple frameworks or GPU-enabled
     array_length(Frameworks) >= 2 or DetectionMethods has "GPU Resource Request", 6,
@@ -144,10 +178,10 @@ AllAIWorkloads
     2  // default
 )
 | extend Recommendation = case(
-    RiskScore >= 7, "🔴 HIGH PRIORITY — Review immediately. Likely production AI workload with elevated risk.",
-    RiskScore >= 5, "🟠 MEDIUM PRIORITY — Validate security posture. Check for over-permissioned identities.",
-    RiskScore >= 3, "🟡 LOW PRIORITY — Monitor for changes. May be dev/test workload.",
-    "✅ INFORMATIONAL — Minimal AI activity detected."
+    RiskScore >= 7, "HIGH PRIORITY — Review immediately. Likely production AI workload with elevated risk.",
+    RiskScore >= 5, "MEDIUM PRIORITY — Validate security posture. Check for over-permissioned identities.",
+    RiskScore >= 3, "LOW PRIORITY — Monitor for changes. May be dev/test workload.",
+    "INFORMATIONAL — Minimal AI activity detected."
 )
 | project 
     Namespace,
@@ -157,6 +191,7 @@ AllAIWorkloads
     Frameworks,
     DetectionMethods,
     Image,
+    InitImage,
     FirstDetected,
     LastActivity,
     DaysActive=datetime_diff('day', LastActivity, FirstDetected),
@@ -167,7 +202,7 @@ AllAIWorkloads
 // HOW TO USE THIS QUERY:
 // ═══════════════════════════════════════════════════════════════════════════════
 //
-// 1. RUN QUERY IN LOG ANALYTICS
+// 1. RUN QUERY IN DEFENDER XDR ADVANCED HUNTING
 //    - Scope to your AKS clusters
 //    - Adjust `lookback` period as needed (default: 7 days)
 //
