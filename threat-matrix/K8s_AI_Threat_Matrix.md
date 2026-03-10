@@ -23,7 +23,7 @@ The existing Kubernetes threat model remains valid. AI workloads **add new attac
 
 | Original K8s Techniques | 🟠 AI Workload Extensions |
 |-------------------------|---------------------------|
-| **Using Cloud Credentials** — Compromised cloud provider credentials (AWS/Azure/GCP IAM) grant K8s access | 🟠 **Agent Framework RCE** — Langflow CVE-2025-3248, LangChain CVE-2024-36480, ComfyUI node abuse |
+| **Using Cloud Credentials** — Compromised cloud provider credentials (AWS/Azure/GCP IAM) grant K8s access | 🟠 **Agent Framework RCE** — Langflow CVE-2025-3248, LangChain CVE-2025-68664 (LangGrinch), ComfyUI node abuse |
 | **Compromised Images in Registry** — Attacker pushes backdoored image to shared registry | 🟠 **Exposed Ray/vLLM Inference Endpoints** — Ray dashboards, vLLM APIs exposed without authentication by default |
 | **Kubeconfig File** — Leaked kubeconfig provides cluster access | 🟠 **MCP Server Compromise** — Malicious Model Context Protocol servers in agent dependencies |
 | **Application Vulnerability** — Exploit in web app running in K8s | 🟠 **HuggingFace Model Typosquatting** — Model name confusion (e.g., `bert-base-uncased` vs `bert_base_uncased`) |
@@ -138,7 +138,7 @@ The existing Kubernetes threat model remains valid. AI workloads **add new attac
 For each technique above:
 - ✅ **Detection queries**: See `/kql/` directory in this repo
 - 🛡️ **Mitigations**: See `/checklists/hardening-priorities.md`
-- 📘 **IR playbook**: See `/playbooks/ai-supply-chain-ir.md`
+- 📘 **IR playbook**: Coming soon — see `checklists/hardening-priorities.md` for immediate remediation steps
 
 ---
 
