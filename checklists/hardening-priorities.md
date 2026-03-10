@@ -111,7 +111,7 @@ kubectl run test-mutable --image=nginx:latest
 ### 4. Prefer safetensors over Pickle for Model Files
 **Why:** safetensors is a pure tensor format with no code execution primitives  
 **How:**
-- See detailed guide in `/guides/pickle-to-safetensors.md`
+- See the [safetensors documentation](https://github.com/huggingface/safetensors) and [HuggingFace migration guide](https://huggingface.co/docs/safetensors) for migration guidance
 - Install safetensors:
   ```bash
   pip install safetensors
@@ -285,8 +285,8 @@ Track these metrics monthly:
 
 | Metric | Target | Query |
 |--------|--------|-------|
-| % images with digest pinning | >95% | `kql/03-mutable-tag-drift.kql` |
-| % GPU pods running as non-root | >80% | `/scripts/gpu-pod-privileges.sh` |
+| % images with digest pinning | >95% | `kql/hunting-queries.kql` Section 0 |
+| % GPU pods running as non-root | >80% | `audit-scripts/audit-ai-workloads.sh` Section 6 |
 | % AI namespaces with egress policies | 100% | `kubectl get networkpolicies -A` |
 | Avg CI token age | <90 days | Review in Entra ID / GitHub |
 | Model files scanned in CI | 100% | CI pipeline metrics |
