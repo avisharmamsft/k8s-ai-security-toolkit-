@@ -11,9 +11,19 @@ set -euo pipefail
 # ── Config ──────────────────────────────────────────────────────────────
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 OUTPUT_FILE="audit-results-${TIMESTAMP}.txt"
-SUBSCRIPTION="${1:-}"
-CLUSTER_NAME="${2:-}"
-RESOURCE_GROUP="${3:-}"
+SUBSCRIPTION=""
+CLUSTER_NAME=""
+RESOURCE_GROUP=""
+
+# Parse named flags
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --subscription)    SUBSCRIPTION="$2";    shift 2 ;;
+    --cluster)         CLUSTER_NAME="$2";    shift 2 ;;
+    --resource-group)  RESOURCE_GROUP="$2";  shift 2 ;;
+    *) echo "Unknown argument: $1"; exit 1 ;;
+  esac
+done
 
 # AI workload indicators — adjust for your environment
 AI_NAMESPACES=("ai" "ml" "inference" "gpu" "llm" "ray" "vllm" "comfyui" "langflow" "kubeflow" "mlops")
@@ -303,8 +313,8 @@ generate_summary() {
   log ""
   log "Next steps:"
   log "  1. Address all ❌ critical findings immediately"
-  log "  2. Review hardening-checklist.md for P0 items"
-  log "  3. Schedule KQL alert rules from hunting-queries.kql"
+  log "  2. Review checklists/hardening-priorities.md for P0 items"
+  log "  3. Schedule KQL alert rules from kql/hunting-queries.kql"
   log "  4. Re-run this script after remediation to verify fixes"
 }
 
