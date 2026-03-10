@@ -44,10 +44,12 @@ CloudProcessEvents
 // ───────────────────────────────────────────────────────────────────────────
 CloudAuditEvents
 | where Timestamp > ago(7d)
-| where ActionType in ("CreatePod","CreateDeployment","CreateStatefulSet")
+| where DataSource == "Kubernetes Audit"
+| where ActionType == "Create"
+| where tostring(RawEventData.objectRef.resource) in ("pods","deployments","statefulsets","replicasets")
 | where RawEventData has_any("nvidia.com/gpu","amd.com/gpu","habana.ai/gaudi")
-| extend PodName   = tostring(parse_json(RawEventData).metadata.name)
-| extend Namespace = tostring(parse_json(RawEventData).metadata.namespace)
+| extend PodName   = tostring(RawEventData.objectRef.name)
+| extend Namespace = tostring(RawEventData.objectRef.namespace)
 | project Timestamp, AccountDisplayName, PodName, Namespace, RawEventData
 | order by Timestamp desc
 
@@ -259,9 +261,11 @@ CloudAuditEvents
 // ───────────────────────────────────────────────────────────────────────────
 CloudAuditEvents
 | where Timestamp > ago(30d)
-| where ActionType in ("CreateMutatingWebhookConfiguration","UpdateMutatingWebhookConfiguration")
+| where DataSource == "Kubernetes Audit"
+| where ActionType in ("Create","Update")
+| where tostring(RawEventData.objectRef.resource) == "mutatingwebhookconfigurations"
 | project Timestamp, AccountDisplayName, ActionType,
-    WebhookName = tostring(parse_json(RawEventData).metadata.name),
+    WebhookName = tostring(RawEventData.objectRef.name),
     RawEventData
 | order by Timestamp desc
 
