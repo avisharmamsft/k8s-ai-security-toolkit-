@@ -1,0 +1,525 @@
+// KQL Hunting Query Pack — AI Workloads in Kubernetes
+// Source: Microsoft Defender XDR (CloudProcessEvents, CloudAuditEvents)
+// Schema: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-schema-tables
+// Prereq: Defender for Containers plan + XDR integration enabled
+// ⚠️  Queries marked [SLIDE] are from the DEX webinar deck — run against real telemetry.
+//     Queries marked [EXTENDED] are schema-consistent additions. Validate in your workspace.
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 0 — FINDING AI WORKLOADS (Scope your hunt first)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// [0.1] Filter by Namespace — pods in AI-designated namespaces          [EXTENDED]
+// Table: CloudProcessEvents
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(7d)
+| where KubernetesNamespace has_any ("ml-","ai-","llm","inference","model","gpu",
+    "ray","vllm","comfyui","langflow","kubeflow","mlops")
+| summarize PodCount=dcount(KubernetesPodName),
+    Pods=make_set(KubernetesPodName, 10)
+  by KubernetesNamespace
+| order by PodCount desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [0.2] Filter by image name — AI framework containers                  [EXTENDED]
+// Table: CloudProcessEvents
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(7d)
+| where ContainerImageName has_any (
+    "vllm","ray-","comfyui","langflow","ollama","triton",
+    "pytorch","tensorflow","huggingface","transformers",
+    "nvidia/cuda","deepspeed","kubeflow","mlflow","torchserve"
+  )
+| summarize PodCount=dcount(KubernetesPodName),
+    Namespaces=make_set(KubernetesNamespace),
+    Images=make_set(ContainerImageName)
+  by bin(Timestamp, 1h)
+| order by Timestamp desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [0.3] Filter by PodSpec — GPU resource requests (strong AI signal)    [EXTENDED]
+// Table: CloudAuditEvents
+// ───────────────────────────────────────────────────────────────────────────
+CloudAuditEvents
+| where Timestamp > ago(7d)
+| where ActionType in ("CreatePod","CreateDeployment","CreateStatefulSet")
+| where RawEventData has_any("nvidia.com/gpu","amd.com/gpu","habana.ai/gaudi")
+| extend PodName   = tostring(parse_json(RawEventData).metadata.name)
+| extend Namespace = tostring(parse_json(RawEventData).metadata.namespace)
+| project Timestamp, AccountDisplayName, PodName, Namespace, RawEventData
+| order by Timestamp desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [0.4] Defender for Cloud Security Explorer — Prebuilt AI workload queries
+// Note: These run in the portal UI, not KQL
+// ───────────────────────────────────────────────────────────────────────────
+/*
+PREBUILT QUERIES IN SECURITY EXPLORER (Defender for Cloud → Cloud Security Explorer):
+
+1. "AKS clusters with pods exposed to the internet"
+   → Catches exposed Ray/vLLM/Ollama inference endpoints without auth
+
+2. "AKS clusters with pods running with high privileges"
+   → GPU pods often run privileged — flag all AI workloads here
+
+3. "Kubernetes clusters with container images that have vulnerabilities"
+   → Filter results for: vllm, ray, langflow, comfyui, triton
+
+4. "Azure containers with a managed identity that have a high severity vulnerability"
+   → AI pods with Workload Identity + unpatched CVEs = critical risk combination
+
+5. "AKS clusters with unmonitored pods"
+   → Surface shadow AI workloads not covered by Defender sensor
+
+Navigation: Defender for Cloud → Cloud Security Explorer → select template → filter subscription/cluster
+*/
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 1 — SUPPLY CHAIN: RUNTIME PIP / NPM INSTALLS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// [1.1] Runtime pip install inside running pod — first-seen baseline     [SLIDE]
+// Table: CloudProcessEvents
+// Catches dependency confusion in prod — summarizes by first-seen date
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(72h)
+| where KubernetesNamespace has_any ("ml-","ai-","gpu-","inference","model")
+| where ProcessCommandLine has "pip install"
+| where ProcessName in ("pip","pip3","python","python3")
+| extend PkgName = extract(@"pip(?:3)? install [^\-][\w\-\.]+(?:=\s|$)", 1,
+    ProcessCommandLine)
+| where isnotempty(PkgName)
+| summarize FirstSeen=min(Timestamp), RunCount=count(),
+    Pods=make_set(KubernetesPodName, 5) by PkgName, KubernetesNamespace
+| where FirstSeen > ago(24h)
+| sort by FirstSeen desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [1.2] npm post-install hook spawning shell — Cline/ClawHavoc class     [SLIDE]
+// Table: CloudProcessEvents
+// node/npm spawning bash or curl = malicious postinstall script executing
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(30d)
+| where KubernetesNamespace has_any ("ml-","ai-",
+    "llm","inference","ci","runner","agent","gitfarm","github")
+| where InitiatingProcessName in ("node","npm","npx","bun","bunx")
+| where ProcessName in ("bash","sh","curl","wget","python","python3")
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+    InitiatingProcessName, ProcessName, ProcessCommandLine
+| sort by Timestamp desc
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 2 — IMDS TOKEN HARVEST (Credential Access)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// [2.1] Cloud metadata endpoint (IMDS) access from AI pods               [SLIDE]
+// Table: CloudProcessEvents
+// Filters to token requests specifically — reduces noise vs. plain IMDS checks
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(7d)
+| where KubernetesNamespace has_any ("ml-","ai-","gpu-","inference","model")
+| where ProcessCommandLine has "169.254" or ProcessCommandLine has "metadata/identity"
+| extend IsIdentityEndpoint = ProcessCommandLine has "metadata/identity"
+| extend IsTokenRequest     = ProcessCommandLine has "Metadata:true"
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+    ProcessCommandLine, IsIdentityEndpoint, IsTokenRequest
+| sort by IsIdentityEndpoint desc, Timestamp desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [2.2] IMDS token harvest → az CLI pivot (correlated, 0–300 sec window)  [SLIDE]
+// Table: CloudProcessEvents (joined)
+// The 86-second attack pattern: pip install → IMDS harvest → Azure API call
+// ───────────────────────────────────────────────────────────────────────────
+let imds = CloudProcessEvents
+    | where Timestamp > ago(24h)
+    | where KubernetesNamespace has_any ("ml-","ai-","gpu-","inference","model")
+    | where ProcessCommandLine has "169.254.169.254"
+    | project T1=Timestamp, KubernetesPodName, KubernetesNamespace,
+        imds_cmd=ProcessCommandLine;
+let azcli = CloudProcessEvents
+    | where Timestamp > ago(24h)
+    | where ProcessCommandLine has_any ("az login","az account","az keyvault","az aks")
+    | project T2=Timestamp, KubernetesPodName,
+        KubernetesNamespace, az_cmd=ProcessCommandLine;
+imds | join kind=inner azcli on KubernetesPodName, KubernetesNamespace
+| where datetime_diff("second", T2, T1) between (0 .. 300)
+| extend DeltaSec = datetime_diff("second", T2, T1)
+| project KubernetesPodName, KubernetesNamespace, DeltaSec, imds_cmd, az_cmd
+| sort by DeltaSec asc
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 3 — AI FRAMEWORK PROCESS ANOMALIES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// [3.1] kubectl executed inside AI/ML pod — agent tool-call abuse         [SLIDE]
+// Table: CloudProcessEvents
+// Catches agent tool-call abuse and in-cluster credential harvest
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(7d) // also correlate with pod age
+| where KubernetesNamespace has_any ("ml-","ai-","llm","inference",
+    "model","agent")
+| where ProcessName == "kubectl"
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+    ContainerName, ContainerImageName, ProcessCommandLine,
+    AccountName, ParentProcessName
+| sort by Timestamp desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [3.2] LangChain deserialization exploitation — LangGrinch/CVE-2025-68664  [SLIDE]
+// Table: CloudProcessEvents
+// LangChain load() uses pickle — arbitrary code exec via crafted chain objects
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(30d)
+| where KubernetesNamespace has_any ("ml-","ai-","llm","inference",
+    "langchain","agent")
+| where ProcessCommandLine has_any
+    ("langchain","langchain_core","dumpd","dumps","load")
+    and
+    ProcessCommandLine has_any ("lc_kwargs","lc_id","lc_type","__root__")
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+    ProcessCommandLine, AccountName
+| sort by Timestamp desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [3.3] Python AI framework spawning shell or lateral tools              [EXTENDED]
+// Table: CloudProcessEvents
+// Broader catch for prompt injection → tool abuse patterns
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(7d)
+| where KubernetesNamespace has_any ("ml-","ai-","llm","inference","model","agent")
+| where InitiatingProcessName in~ ("python","python3","python3.10","python3.11","python3.12")
+| where InitiatingProcessCommandLine has_any(
+    "langchain","autogen","crewai","semantic_kernel","haystack",
+    "langflow","ray serve","vllm","transformers","torch","fastapi","uvicorn"
+  )
+| where ProcessCommandLine has_any(
+    "curl ","wget ","nc ","bash -c","sh -c",
+    "/tmp/","/dev/shm/","chmod +x","kubectl","az login"
+  )
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+    ContainerImageName,
+    ChildProcess    = ProcessCommandLine,
+    ParentFramework = InitiatingProcessCommandLine
+| sort by Timestamp desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [3.4] Torch.load / pickle deserialization with side-effect spawn       [EXTENDED]
+// Table: CloudProcessEvents | Status: Preview
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(7d)
+| where KubernetesNamespace has_any ("ml-","ai-","llm","inference","model")
+| where InitiatingProcessCommandLine has_any(
+    "torch.load","pickle.load","joblib.load","load_model","from_pretrained"
+  )
+| where ProcessCommandLine has_any("curl","wget","nc ","bash","sh","/tmp/","/dev/shm/","chmod")
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+    ProcessCommandLine, InitiatingProcessCommandLine
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 4 — SIDECAR INJECTION & WEBHOOK ABUSE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// [4.1] Sidecar injection detection — mid-run pod mutation               [SLIDE]
+// Table: CloudAuditEvents
+// Any pod gaining a container at runtime is anomalous — high fidelity signal
+// Prereq: K8s audit policy must be RequestResponse level for pod operations
+// (oldObject only captured at RequestResponse — Metadata level returns null)
+// ───────────────────────────────────────────────────────────────────────────
+CloudAuditEvents
+| where Timestamp > ago(30d)
+| where DataSource == "Kubernetes Audit"
+| where OperationName == "pods/update" or OperationName == "pods/patch"
+| where tostring(todynamic(RawEventData).objectRef.namespace) has_any ("ml-","ai-",
+    "llm","inference","model","gpu")
+| extend NewSpec = todynamic(RawEventData).requestObject.spec.containers
+| extend OldSpec = todynamic(RawEventData).oldObject.spec.containers
+| where array_length(NewSpec) > array_length(OldSpec)
+| extend NewContainer = tostring(NewSpec[array_length(NewSpec)-1].name)
+| extend NewImage     = tostring(NewSpec[array_length(NewSpec)-1].image)
+| project Timestamp, KubernetesPodName, KubernetesNamespace, NewContainer, NewImage,
+    Username=tostring(todynamic(RawEventData).user.username)
+| sort by Timestamp desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [4.2] New mutating webhook registration                                [EXTENDED]
+// Table: CloudAuditEvents
+// ───────────────────────────────────────────────────────────────────────────
+CloudAuditEvents
+| where Timestamp > ago(30d)
+| where ActionType in ("CreateMutatingWebhookConfiguration","UpdateMutatingWebhookConfiguration")
+| project Timestamp, AccountDisplayName, ActionType,
+    WebhookName = tostring(parse_json(RawEventData).metadata.name),
+    RawEventData
+| order by Timestamp desc
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 5 — CI/CD PIPELINE DEPENDENCY DRIFT
+// ═══════════════════════════════════════════════════════════════════════════
+
+// [5.1] CI/CD pipeline dependency drift (Defender for DevOps)            [SLIDE]
+// Table: CloudAuditEvents
+// Flags new pip/npm packages added to inference container images across pipelines
+// Requires: Defender for DevOps connector enabled for GitHub Actions / Azure Pipelines
+// ───────────────────────────────────────────────────────────────────────────
+CloudAuditEvents
+| where Timestamp > ago(7d)
+| where OperationName has "pipeline" or OperationName has "workflow"
+| extend PkgChange = todynamic(RawEventData).properties.packageChanges
+| where isnotnull(PkgChange)
+| mv-expand pkg = PkgChange
+| extend PkgName    = tostring(pkg.name),
+    PkgVersion  = tostring(pkg.version),
+    Action      = tostring(pkg.action)
+| where Action == "added"
+| where PkgName has_any("huggingface","torch","langchain","openclaw",
+    "triton","ray","vllm","bitsandbytes")
+| project Timestamp,
+    PipelineName=tostring(todynamic(RawEventData).resourceName),
+    PkgName, PkgVersion,
+    CommitId=tostring(todynamic(RawEventData).properties.commitId)
+| sort by Timestamp desc
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 6 — CRYPTOMINING IN AI PODS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// [6.1] Known cryptominer process signatures in pods                     [EXTENDED]
+// Table: CloudProcessEvents
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(7d)
+| where KubernetesNamespace has_any ("ml-","ai-","gpu-","inference","model","ray","vllm")
+| where ProcessCommandLine has_any(
+    "xmrig","xmr-stak","t-rex","nbminer","gminer","lolminer",
+    "stratum+tcp://","pool.supportxmr.com","xmrpool","minexmr","nicehash","nanopool"
+  )
+    or ProcessCommandLine matches regex @"--algo\s+(rx|cn|kawpow|ethash|autolykos)"
+    or ProcessCommandLine matches regex @"-o\s+stratum"
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+    ContainerImageName, ProcessCommandLine, ParentProcessName
+| sort by Timestamp desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [6.2] Disguised miner — process masquerading as system processes        [EXTENDED]
+// Table: CloudProcessEvents | Status: Preview — tune FP rate in your env
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(7d)
+| where KubernetesNamespace has_any ("ml-","ai-","gpu-","inference","model")
+| where ProcessName in~ ("systemd","kube-proxy","kube-apiserver","etcd","kubelet","dockerd","containerd")
+// System processes should NOT be in /tmp, /dev/shm, or home dirs
+| where FolderPath has_any("/tmp/","/dev/shm/","/home/","/root/","./")
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+    ProcessName, FolderPath, ProcessCommandLine
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 7 — SENTINEL / LOG ANALYTICS (AzureDiagnostics + SecurityAlert)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// [7.1] Defender for Cloud alerts — K8s + AI workloads                   [EXTENDED]
+// Table: SecurityAlert (Sentinel) | Requires: Defender for Cloud → Sentinel connector
+// ───────────────────────────────────────────────────────────────────────────
+SecurityAlert
+| where TimeGenerated > ago(7d)
+| where AlertName has_any(
+    "Kubernetes","container","AKS",
+    "GPU","cryptomin","miner","coin",
+    "IMDS","metadata service","managed identity",
+    "pip install","package","supply chain",
+    "reverse shell","command injection","exec into"
+  )
+| extend PodName     = tostring(parse_json(ExtendedProperties).["pod name"])
+| extend Namespace   = tostring(parse_json(ExtendedProperties).["namespace"])
+| extend ClusterName = tostring(parse_json(ExtendedProperties).["kubernetes cluster"])
+| project TimeGenerated, AlertName, AlertSeverity,
+    ClusterName, Namespace, PodName, Description, RemediationSteps
+| order by AlertSeverity asc, TimeGenerated desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [7.2] K8s audit — excessive secret access (credential harvesting)      [EXTENDED]
+// Table: AzureDiagnostics (Sentinel/Log Analytics)
+// Requires: AKS diagnostic settings → kube-audit → Log Analytics workspace
+// ───────────────────────────────────────────────────────────────────────────
+AzureDiagnostics
+| where TimeGenerated > ago(7d)
+| where Category == "kube-audit"
+| extend AuditLog = parse_json(log_s)
+| where tostring(AuditLog.objectRef.resource) == "secrets"
+| where tostring(AuditLog.verb) in ("get","list","watch")
+| where not(tostring(AuditLog.user.username) has_any(
+    "system:serviceaccount:kube-system",
+    "system:serviceaccount:monitoring",
+    "system:node:","system:kube-controller-manager"
+  ))
+| summarize
+    SecretAccessCount = count(),
+    UniqueSecrets     = dcount(tostring(AuditLog.objectRef.name)),
+    SecretNames       = make_set(tostring(AuditLog.objectRef.name), 20)
+  by User      = tostring(AuditLog.user.username),
+     Namespace = tostring(AuditLog.objectRef.namespace),
+     bin(TimeGenerated, 5m)
+| where SecretAccessCount > 5
+| order by SecretAccessCount desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [7.3] K8s audit — exec into AI pods                                    [EXTENDED]
+// Table: AzureDiagnostics (Sentinel/Log Analytics)
+// ───────────────────────────────────────────────────────────────────────────
+AzureDiagnostics
+| where TimeGenerated > ago(7d)
+| where Category == "kube-audit"
+| extend AuditLog = parse_json(log_s)
+| where tostring(AuditLog.verb) == "create"
+| where tostring(AuditLog.requestURI) has "/exec"
+| extend PodName   = tostring(AuditLog.objectRef.name)
+| extend Namespace = tostring(AuditLog.objectRef.namespace)
+| extend User      = tostring(AuditLog.user.username)
+| where Namespace has_any("ai","ml","inference","gpu","llm","model","vllm","ray","comfyui","langflow")
+    or PodName    has_any("vllm","ray","gpu","model","infer","comfyui","langflow","ollama")
+| project TimeGenerated, User, Namespace, PodName, RawLog = log_s
+| order by TimeGenerated desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [7.4] Entra ID — new app registration from service principal actor     [EXTENDED]
+// Table: AuditLogs (Sentinel) — common post-IMDS-pivot persistence step
+// ───────────────────────────────────────────────────────────────────────────
+AuditLogs
+| where TimeGenerated > ago(7d)
+| where OperationName in (
+    "Add application","Add service principal",
+    "Add service principal credentials",
+    "Update application – Certificates and secrets management",
+    "Add owner to application"
+  )
+| where Result == "success"
+| extend Actor     = coalesce(
+    tostring(InitiatedBy.user.userPrincipalName),
+    tostring(InitiatedBy.app.displayName)
+  )
+| extend TargetApp = tostring(TargetResources[0].displayName)
+| extend IsServicePrincipal = isempty(tostring(InitiatedBy.user.userPrincipalName))
+| where IsServicePrincipal == true // Non-human actor — suspicious
+| project TimeGenerated, OperationName, Actor, TargetApp, IsServicePrincipal, CorrelationId
+| order by TimeGenerated desc
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 8 — SCHEDULED ALERT RULES (Import into Sentinel Analytics)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// [8.1] SCHEDULED: Runtime pip install in production AI pods
+// Frequency: Every 1h | Lookback: 1h | Severity: High
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(1h)
+| where KubernetesNamespace has_any ("ml-","ai-","gpu-","inference","model","vllm","ray")
+| where ProcessCommandLine has "pip install"
+| where ProcessName in ("pip","pip3","python","python3")
+| extend PkgName = extract(@"pip(?:3)? install [^\-][\w\-\.]+", 0, ProcessCommandLine)
+| summarize Count=count(), Packages=make_set(PkgName)
+  by KubernetesPodName, KubernetesNamespace
+| where Count >= 1
+
+// [8.2] SCHEDULED: IMDS access from AI pod
+// Frequency: Every 15m | Lookback: 15m | Severity: Medium
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(15m)
+| where KubernetesNamespace has_any ("ml-","ai-","gpu-","inference","model")
+| where ProcessCommandLine has "169.254.169.254" and ProcessCommandLine has "token"
+| where not(InitiatingProcessCommandLine has_any(
+    "azure-monitor-agent","ama-","omsagent","aks-node-imds-proxy",
+    "aad-pod-identity","azure-workload-identity"
+  ))
+| summarize Count=count() by KubernetesPodName, KubernetesNamespace, bin(Timestamp, 15m)
+| where Count >= 1
+
+// [8.3] SCHEDULED: Cryptominer in any AI/GPU pod
+// Frequency: Every 5m | Lookback: 5m | Severity: Critical
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(5m)
+| where KubernetesNamespace has_any ("ml-","ai-","gpu-","inference","model","ray","vllm")
+| where ProcessCommandLine has_any(
+    "xmrig","stratum+tcp://","pool.supportxmr","xmrpool",
+    "nicehash","--algo rx","t-rex","nbminer"
+  )
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+    ContainerImageName, ProcessCommandLine
+
+// [8.4] SCHEDULED: npm postinstall spawning shell in CI/CD namespace
+// Frequency: Every 1h | Lookback: 1h | Severity: High
+// ───────────────────────────────────────────────────────────────────────────
+CloudProcessEvents
+| where Timestamp > ago(1h)
+| where KubernetesNamespace has_any ("ci","runner","agent","gitfarm","github","ml-","ai-")
+| where InitiatingProcessName in ("node","npm","npx","bun","bunx")
+| where ProcessName in ("bash","sh","curl","wget","python","python3")
+| project Timestamp, KubernetesPodName, KubernetesNamespace,
+    InitiatingProcessName, ProcessName, ProcessCommandLine
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION 9 — AGENT TOOL-CALL DRIFT BASELINE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// [9.1] Agent tool-call drift — 14-day SA verb baseline                  [EXTENDED]
+// Table: CloudAuditEvents (XDR)
+// 5th distinct K8s verb from an inference SA = anomalous agent behavior
+// Logic: inference pods have a small, predictable K8s API footprint.
+//        Flag when they suddenly call verbs outside their established baseline.
+// ───────────────────────────────────────────────────────────────────────────
+let BaselineWindow = ago(14d);
+let HuntWindow = ago(24h);
+let BaselineVerbs = CloudAuditEvents
+| where Timestamp between (BaselineWindow .. ago(25h))
+| where KubernetesNamespace has_any ("ml-","ai-","llm","inference","model","agent")
+| where AccountName has_any ("sa-","serviceaccount","inference","agent","llm","ai-")
+| summarize BaselineVerbSet=make_set(ActionType) by AccountName, KubernetesNamespace;
+CloudAuditEvents
+| where Timestamp > HuntWindow
+| where KubernetesNamespace has_any ("ml-","ai-","llm","inference","model","agent")
+| where AccountName has_any ("sa-","serviceaccount","inference","agent","llm","ai-")
+| summarize CurrentVerbSet=make_set(ActionType), Count=count()
+  by AccountName, KubernetesNamespace
+| join kind=leftouter BaselineVerbs on AccountName, KubernetesNamespace
+| extend NewVerbs = set_difference(CurrentVerbSet, coalesce(BaselineVerbSet, dynamic([])))
+| extend NewVerbCount = array_length(NewVerbs)
+| where NewVerbCount >= 1
+| project AccountName, KubernetesNamespace, NewVerbCount, NewVerbs,
+    CurrentVerbSet, BaselineVerbSet
+| order by NewVerbCount desc
+
+// ───────────────────────────────────────────────────────────────────────────
+// [9.2] CI service principal authenticating from AKS pod IP               [EXTENDED]
+// Table: AADSpnSignInEventsBeta (XDR) | Near-zero false positives if CI
+//        identities are tagged in Entra ID. CI SPNs should never auth from
+//        inside the cluster — this = confirmed credential theft.
+// ───────────────────────────────────────────────────────────────────────────
+let AKSPodCIDRs = dynamic(["10.","172.16.","172.17.","172.18.","172.19.",
+    "172.20.","172.21.","172.22.","172.23.","172.24.","172.25.","172.26.",
+    "172.27.","172.28.","172.29.","172.30.","172.31.","192.168."]);
+AADSpnSignInEventsBeta
+| where Timestamp > ago(7d)
+// Filter to CI/CD service principals — adjust tag/name pattern for your env
+| where Application has_any ("github","ado","pipeline","ci-","deploy","devops","build")
+    or ServicePrincipalName has_any ("github","ado","pipeline","ci-","deploy")
+| where IPAddress has_any (AKSPodCIDRs)
+| project Timestamp, ServicePrincipalName, Application, IPAddress,
+    ResourceDisplayName, ErrorCode
+| order by Timestamp desc
